@@ -115,7 +115,7 @@ class BasicAuthModule extends IfModule
 
     public function addAllowUserAgent(string $userAgent): self
     {
-        $this->addDirective('SetEnvIf User-Agent "' . $userAgent . '" ForceAllow');
+        $this->addDirective('SetEnvIfNoCase User-Agent "' . $userAgent . '" ForceAllow');
         return $this;
     }
 
