@@ -21,7 +21,6 @@
     },
     "require-dev": {
         "symfony/yaml": "^7.2",
-        "symfony/filesystem": "^7.2",
         "jdz/data": "^1.0",
         "phpunit/phpunit": "^11.0"
     },
