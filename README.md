@@ -16,7 +16,7 @@ I use this library to manage my clients htaccess files based on their needs and 
 ## Installation
 
 ```bash
-composer require jdz/htaccess-maker
+composer require jdz/htaccessmaker
 ```
 
 ## Quick Start
@@ -305,6 +305,7 @@ Run the comprehensive test suite:
 # Using composer scripts
 composer test
 composer test:core
+```
 
 ## API Reference
 
