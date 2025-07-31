@@ -27,6 +27,7 @@ class RoutingRewrite extends RewriteModule
             'baseUrl' => '/',
             'checkTrailingSlash' => true,
             'versionedFiles' => true,
+            'mindWellKnown' => false,
             'domainApps' => [],
             'rules' => [],
             'defaultController' => 'index.php',
@@ -35,7 +36,7 @@ class RoutingRewrite extends RewriteModule
         $this->addRewriteBase($config['baseUrl']);
 
         if ($config['checkTrailingSlash']) {
-            $this->checkTrailingSlash();
+            $this->checkTrailingSlash($config['mindWellKnown']);
         }
 
         // Append custom redirect rules if provided
@@ -54,10 +55,13 @@ class RoutingRewrite extends RewriteModule
         $this->addDefaultController($config['defaultController']);
     }
 
-    public function checkTrailingSlash(): self
+    public function checkTrailingSlash(bool $mindWellKnown = false): self
     {
         $this->addDirective(new Comment('Check trailing slash'));
         $this->addRewriteCond('%{REQUEST_URI}', '!/$');
+        if ($mindWellKnown) {
+            $this->addRewriteCond('%{REQUEST_URI}', '!^/.well-known');
+        }
         $this->addRewriteCond('%{REQUEST_FILENAME}', '!-f');
         $this->addRewriteRule('(.*)$', '/$1/', ['L', 'R=301']);
         return $this;
