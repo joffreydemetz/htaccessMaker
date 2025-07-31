@@ -1,0 +1,128 @@
+showComments: true
+
+serverSignature: false
+
+mimeTypes:
+  - { type: font/ttf, extensions: [".ttf"] }
+  - { type: font/woff, extensions: [".woff"] }
+  - { type: font/woff2, extensions: [".woff2"] }
+  - { type: application/vnd.ms-fontobject, extensions: [".eot"] }
+  - { type: application/svg+xml, extensions: [".svg", ".svgz"] }
+
+errorDocuments:
+  - { code: 403, url: "/html/forbidden.html" }
+  - { code: 404, url: "/html/notfound.html" }
+  - { code: 500, url: "/html/internal-error.html" }
+  - { code: 502, url: "/html/bad-gateway.html" }
+  - { code: 503, url: "/html/unavailable.html" }
+
+# redir
+redirectMaintenance: true
+checkTrailingSlash: true
+
+# Browser rendering
+staticFilesExtensions:
+  - js
+  - css
+  - gif
+  - png
+  - jpe?g
+  - pdf
+  - xml
+  - oga
+  - ogg
+  - m4a
+  - ogv
+  - mp4
+  - m4v
+  - webm
+  - svg
+  - svgz
+  - eot
+  - ttf
+  - otf
+  - woff
+  - ico
+  - webp
+  - json
+  - vcf
+
+# compression
+webCompression: true
+wcMimeTypes:
+  - "text/html"
+  - "text/plain"
+  - "text/xml"
+  - "text/css"
+  - "text/javascript"
+  - "application/xml"
+  - "application/xhtml+xml"
+  - "application/javascript"
+  - "application/json"
+wcBrowserCompatibility: true
+wcFileExclusions:
+  - "/favicon.ico"
+  - "/robots.txt"
+  - "/sitemap.xml"
+wcVaryHeader: true
+
+# cache
+webCaching: true
+preventCookieMaxAge: 31536000
+preventCookieRemoveCookies: true
+preventCookieSetCacheControl: true
+preventCookieSetConnectionHeaders: true
+preventCookieDisableETags: true
+preventCookieSetVaryHeaders: true
+
+# security
+blacklistReferrers:
+  - "https://www.google.com/search?q=site%3A"
+  - "https://www.bing.com/search?q=site%3A"
+  - "https://www.yahoo.com/search?p=site%3A"
+  - "https://duckduckgo.com/?q=site%3A"
+  - "https://www.yandex.com/search/?text=site%3A"
+blacklistUserAgents:
+  - "BadBot"
+  - "SpamBot"
+  - "MaliciousBot"
+  - "CrawlerBot"
+  - "ScraperBot"
+
+# CSP
+csp:
+  default:
+    - "self"
+  script:
+    - "self"
+    - "unsafe-inline"
+  style:
+    - "self"
+    - "unsafe-inline"
+  font:
+    - "self"
+    - "data"
+  connect:
+    - "self"
+  img:
+    - "self"
+    - "data"
+  child:
+    - "self"
+  media:
+    - "self"
+  object:
+    - "self"
+  manifest:
+    - "self"
+
+# rexrite
+domainApps:
+  - { domain: "app1.local", file: "app1.php" }
+  - { domain: "app2.local", file: "app2.php" }
+rules:
+  - { from: "^medias/share-200-150.jpg$", to: "/logo.png" }
+  - { from: "^medias/share-400-300.jpg$", to: "/logo.png" }
+  - { from: "^medias/share-800-600.jpg$", to: "/logo.png" }
+# sitemapModals: true
+# robotsTxt: true

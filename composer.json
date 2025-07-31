@@ -1,0 +1,47 @@
+{
+    "name": "jdz/htaccessmaker",
+    "type": "library",
+    "description": "Build htaccess files",
+    "keywords": [
+        "htaccess",
+        "utility"
+    ],
+    "homepage": "https://jdz.joffreydemetz.com/htaccessmaker/",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Joffrey Demetz",
+            "email": "joffrey.demetz@gmail.com",
+            "homepage": "https://joffreydemetz.com",
+            "role": "Lead"
+        }
+    ],
+    "require": {
+        "php": ">=8.1"
+    },
+    "require-dev": {
+        "symfony/yaml": "^7.2",
+        "symfony/filesystem": "^7.2",
+        "jdz/data": "^1.0",
+        "phpunit/phpunit": "^11.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "JDZ\\HtaccessMaker\\": "src"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "test:directive": "phpunit --testsuite directive",
+        "test:container": "phpunit --testsuite container",
+        "test:module": "phpunit --testsuite module",
+        "test:examples": "phpunit --testsuite examples",
+        "test:core": "phpunit --testsuite core",
+        "test:testdox": "phpunit --testdox"
+    }
+}

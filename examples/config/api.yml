@@ -1,0 +1,14 @@
+public: /api
+rewriteBase: /api
+httpAuthorization: true
+checkTrailingSlash: true
+authMethods:
+  - "GET"
+  - "POST"
+  - "DELETE"
+blacklistHttpMethods:
+  - "TRACE"
+  - "TRACK"
+  - "OPTIONS"
+  - "HEAD"
+  - "PUT"

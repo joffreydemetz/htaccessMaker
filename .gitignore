@@ -1,6 +1,14 @@
-composer.phar
-/vendor/
-
-# Commit your application's lock file https://getcomposer.org/doc/01-basic-usage.md#commit-your-composer-lock-file-to-version-control
-# You may choose to ignore a library lock file http://getcomposer.org/doc/02-libraries.md#lock-file
-# composer.lock
+.phpunit.cache
+testdox.txt
+composer.lock
+examples/config/admin.yml
+examples/config/apiserver.yml
+examples/config/hooks.yml
+examples/config/client.yml
+examples/config/client.dev.yml
+examples/config/client.medias.yml
+examples/client.php
+examples/media.class.php
+examples/exports/*
+tests/
+vendor/

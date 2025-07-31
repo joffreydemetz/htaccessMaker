@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.5/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         cacheDirectory=".phpunit.cache"
+         executionOrder="depends,defects"
+         beStrictAboutOutputDuringTests="true"
+         failOnWarning="true"
+         failOnRisky="true"
+         stopOnFailure="false"
+         colors="true">
+    
+    <testsuites>
+        <!-- Core root classes -->
+        <testsuite name="Core">
+            <file>tests/HtAccessTest.php</file>
+            <file>tests/HtPasswdTest.php</file>
+            <file>tests/CspTest.php</file>
+            <file>tests/ContainerTest.php</file>
+            <file>tests/DirectiveTest.php</file>
+            <file>tests/IfModuleTest.php</file>
+        </testsuite>
+        
+        <!-- Container tests -->
+        <testsuite name="Container">
+            <directory>tests/Container</directory>
+        </testsuite>
+        
+        <!-- Directive tests -->
+        <testsuite name="Directive">
+            <directory>tests/Directive</directory>
+        </testsuite>
+        
+        <!-- Module tests -->
+        <testsuite name="Module">
+            <directory>tests/Module</directory>
+        </testsuite>
+        
+        <!-- Example tests -->
+        <testsuite name="Examples">
+            <directory>tests/Examples</directory>
+        </testsuite>
+        
+        <!-- All tests combined -->
+        <testsuite name="All">
+            <directory>tests</directory>
+        </testsuite>
+    </testsuites>
+    
+    <source>
+        <include>
+            <directory>src</directory>
+        </include>
+    </source>
+    
+    <logging>
+        <testdoxText outputFile="testdox.txt"/>
+    </logging>
+    
+    <php>
+        <ini name="memory_limit" value="256M"/>
+        <ini name="error_reporting" value="E_ALL"/>
+        <ini name="display_errors" value="On"/>
+        <ini name="display_startup_errors" value="On"/>
+    </php>
+</phpunit>

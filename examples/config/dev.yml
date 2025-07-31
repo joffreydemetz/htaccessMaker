@@ -1,0 +1,22 @@
+# rewrite
+redirectMaintenance: false
+
+# Basic Authentication
+protectedDefaultPaths: true
+serverAuthorization: true
+protectedAuthName: "Protected area"
+htPasswordClear: 54np_bb77!
+htPasswordDir: /home/public/
+htPasswordUser: username
+allowedPaths:
+  - favicon/app1/manifest.json
+  - favicon/app2/manifest.json
+  - favicon/app1/browserconfig.xml
+  - favicon/app2/browserconfig.xml
+allowedUserBots:
+  - "GoogleBot"
+  - "BingBot"
+  - "Slurp"
+  - "DuckDuckBot"
+  - "Twitterbot"
+  - "facebookexternalhit"

@@ -1,0 +1,66 @@
+mimeTypes:
+  - { type: font/ttf, extensions: [".ttf"] }
+  - { type: font/woff, extensions: [".woff"] }
+  - { type: font/woff2, extensions: [".woff2"] }
+  - { type: application/vnd.ms-fontobject, extensions: [".eot"] }
+  - { type: application/svg+xml, extensions: [".svg"] }
+
+authMethods:
+  - GET
+  - POST
+
+# CSP
+securityPolicy: true
+csp:
+  default:
+    - "'none'"
+    # - 'https:'
+  style:
+    - "'self'"
+    - "'unsafe-inline'"
+  img:
+    - "'self'"
+    - "data:"
+
+# SSL
+preventNonSsl:
+  - "/assets/images/.+$"
+  - "/favicon/.+$"
+  - '/favicon\.ico$'
+  - "/media/.+$"
+  - "/thumbs/.+$"
+  - '/robots\.txt$'
+  - "/sitemap/.+$"
+  - '/sitemap\/.+\.xml$'
+  - '/sitemap\.xml$'
+
+# Browser rendering
+uaCompatible: true
+unsetOnStaticFiles: true
+browserRender: true
+uaCompatibleBrowsers: "IE=Edge"
+staticFilesExtensions:
+  - js
+  - css
+  - gif
+  - png
+  - jpe?g
+  - jpeg
+  - pdf
+  - svg
+  - eot
+  - ttf
+  - otf
+  - woff
+  - woff2
+  - ico
+
+# anti XSS
+antiXss: true
+strictTransportSecurity: "max-age=604800; includeSubDomains"
+
+# rewrite
+versionedFiles: true
+
+# SSL
+forceSsl: true

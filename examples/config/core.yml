@@ -1,0 +1,116 @@
+showComments: true
+ensureApacheCompatibility: false
+
+serverSignature: false
+directoryIndex: ~
+mimeTypes: []
+errorDocuments: []
+authMethods:
+  - GET
+options:
+  - "-Indexes"
+  - "-MultiViews"
+  - "+FollowSymLinks"
+
+# CSP
+securityPolicy: false
+useXContentSecurityPolicy: false
+csp: []
+
+# SSL
+forceSsl: true
+preventNonSsl: []
+
+# Browser rendering
+uaCompatible: false
+unsetOnStaticFiles: false
+browserRender: false
+uaCompatibleBrowsers: ""
+staticFilesExtensions: []
+
+# cache
+webCaching: false
+cacheRules: []
+defaultCacheExpiry: "access plus 1 month"
+preventCookieMaxAge: 31536000
+preventCookieRemoveCookies: false
+preventCookieSetCacheControl: false
+preventCookieSetConnectionHeaders: false
+preventCookieDisableETags: false
+preventCookieSetVaryHeaders: false
+
+# web compression
+webCompression: false
+wcMimeTypes: []
+wcBrowserCompatibility: false
+wcFileExclusions: []
+wcVaryHeader: false
+
+# negociation
+negociation: false
+negIndexIgnorePattern: "*"
+negMultiviews: false
+negCustomOptions: []
+
+# anti-XSS
+antiXss: false
+xssProtection: "1; mode=block"
+frameOptions: "SAMEORIGIN"
+contentTypeOptions: "nosniff"
+refererPolicy: "strict-origin-when-cross-origin"
+strictTransportSecurity: ""
+
+# security
+blockAction: "/goaway.html"
+blockFlags: ["R=403", "F"]
+blockUrlAttacks: true
+blockSqlInjection: true
+blockShellInjection: true
+blockMaliciousRequests: true
+blacklistReferrers: []
+blacklistUserAgents: []
+blacklistHttpMethods:
+  - "TRACE"
+  - "TRACK"
+  - "OPTIONS"
+  - "HEAD"
+  - "PUT"
+  - "DELETE"
+
+# rewrite
+redirectWww: false
+redirectMaintenance: false
+rewriteBase: ~
+checkTrailingSlash: false
+versionedFiles: false
+rules: []
+domainApps: []
+
+# Basic Authentication
+# htpasswd: ~
+# htPasswordName: ~
+serverAuthorization: false
+protectedAuthName: ~
+htPasswordClear: ~
+htPasswordDir: ~
+htPasswordUser: test
+protectedDefaultPaths: false
+allowedPaths: []
+allowedIps: []
+allowedUserBots: []
+
+# HTTP Headers
+httpAuthorization: false
+
+# media
+blockHotlinking: false
+# public: ~
+# robots
+# robotsTxt: false
+# sitemap: false
+# sitemapUrl: ~
+# sitemapModals: false
+# socialBots: []
+# disallowRobots: []
+# redirectUnderConstruction: false
+
