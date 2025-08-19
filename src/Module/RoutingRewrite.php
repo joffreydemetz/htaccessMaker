@@ -49,10 +49,10 @@ class RoutingRewrite extends RewriteModule
         }
 
         foreach ($config['domainApps'] as $domainApp) {
-            $this->addDomainApp($domainApp['domain'], $domainApp['file']);
+            $this->addDomainApp($domainApp['domain'], $domainApp['file'], $config['mindWellKnown']);
         }
 
-        $this->addDefaultController($config['defaultController']);
+        $this->addDefaultController($config['defaultController'], $config['mindWellKnown']);
     }
 
     public function checkTrailingSlash(bool $mindWellKnown = false): self
@@ -60,7 +60,7 @@ class RoutingRewrite extends RewriteModule
         $this->addDirective(new Comment('Check trailing slash'));
         $this->addRewriteCond('%{REQUEST_URI}', '!/$');
         if ($mindWellKnown) {
-            $this->addRewriteCond('%{REQUEST_URI}', '!^/.well-known');
+            $this->addRewriteCond('%{REQUEST_URI}', '!^/.well-known/?.*');
         }
         $this->addRewriteCond('%{REQUEST_FILENAME}', '!-f');
         $this->addRewriteRule('(.*)$', '/$1/', ['L', 'R=301']);
@@ -89,20 +89,26 @@ class RoutingRewrite extends RewriteModule
         return $this;
     }
 
-    public function addDomainApp(string $domain, string $appFile): self
+    public function addDomainApp(string $domain, string $appFile, bool $mindWellKnown = false): self
     {
         $this->addDirective(new Comment('App ' . basename($appFile) . ' controller'));
         $this->addRewriteCond('%{HTTP_HOST}', '=' . $domain);
+        if ($mindWellKnown) {
+            $this->addRewriteCond('%{REQUEST_URI}', '!^/.well-known/?.*');
+        }
         $this->addRewriteCond('%{REQUEST_URI}', '!^/' . $appFile);
         $this->addRewriteCond('%{REQUEST_FILENAME}', '!-f');
         $this->addRewriteRule('.*', $appFile, ['L']);
         return $this;
     }
 
-    public function addDefaultController(string $controller = 'index.php'): self
+    public function addDefaultController(string $controller = 'index.php', bool $mindWellKnown = false): self
     {
         $this->addDirective(new Comment('Default controller'));
         $this->addRewriteCond('%{REQUEST_URI}', '!^/' . $controller);
+        if ($mindWellKnown) {
+            $this->addRewriteCond('%{REQUEST_URI}', '!^/.well-known/?.*');
+        }
         $this->addRewriteCond('%{REQUEST_FILENAME}', '!-f');
         $this->addRewriteCond('%{REQUEST_FILENAME}', '!-d');
         $this->addRewriteRule('^', '/' . $controller, ['L']);
