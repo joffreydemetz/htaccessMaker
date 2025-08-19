@@ -75,7 +75,11 @@ class RoutingRewrite extends RewriteModule
 
         $this->addDirective(new Comment('Route redirects'));
         foreach ($redirects as $redirect) {
-            $this->addRewriteRule($redirect['from'], $redirect['to'], $redirect['flags'] ?? ['R=301', 'L']);
+            if (is_string($redirect)) {
+                $this->addDirective($redirect);
+            } else {
+                $this->addRewriteRule($redirect['from'], $redirect['to'], $redirect['flags'] ?? ['R=301', 'L']);
+            }
         }
 
         return $this;
