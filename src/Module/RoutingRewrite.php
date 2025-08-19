@@ -88,8 +88,8 @@ class RoutingRewrite extends RewriteModule
     public function addVersionedFiles(): self
     {
         $this->addDirective(new Comment('Rewrite versioned files'));
-        $this->addRewriteCond('%{QUERY_STRING}', '!(^|&)v=([^&]+)');
-        $this->addRewriteRule('^(.*)$', '$1?v=$2', ['L']);
+        $this->addRewriteRule('^(.+)_(\d+)\.(js|css|png|jpg|jpeg|gif|pdf)$', '$1.$3', ['L']);
+        $this->addRewriteRule('^(.+)\.(js|css|png|jpg|jpeg|gif|pdf)\?(\d+)$', '$1.$2', ['L']);
         return $this;
     }
 
