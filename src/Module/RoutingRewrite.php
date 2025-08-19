@@ -115,7 +115,7 @@ class RoutingRewrite extends RewriteModule
         }
         $this->addRewriteCond('%{REQUEST_FILENAME}', '!-f');
         $this->addRewriteCond('%{REQUEST_FILENAME}', '!-d');
-        $this->addRewriteRule('^', '/' . $controller, ['L']);
+        $this->addRewriteRule('^', $controller, ['L']);
         return $this;
     }
 }
