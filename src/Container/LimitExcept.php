@@ -76,6 +76,7 @@ class LimitExcept extends Container
 
     public function attributes(): string
     {
+        $this->authMethods = array_unique($this->authMethods);
         return ' ' . implode(' ', $this->authMethods);
     }
 }

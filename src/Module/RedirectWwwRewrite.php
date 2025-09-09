@@ -26,7 +26,7 @@ class RedirectWwwRewrite extends RewriteModule
         }
 
         $this->addDirective(new Comment('Redirect www to non-www'));
-        $this->addRewriteCond('%{HTTP_HOST}', '^www\.(.*)$', ['NC']);
-        $this->addRewriteRule('^(.*)$', 'https://%1/$1', ['L', 'R=301']);
+        $this->addRewriteCond('%{HTTP_HOST}', '^www\.(.*)$');
+        $this->addRewriteRule('^(.*)$', 'https://%1/$1', ['R=301', 'L']);
     }
 }

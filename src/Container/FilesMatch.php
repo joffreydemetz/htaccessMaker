@@ -48,18 +48,16 @@ class FilesMatch extends Container
             if ($this->pattern) {
                 $config['pattern'] = $this->pattern;
             }
-        } else {
-            $this->pattern = $config['pattern'] ?? '';
         }
 
         $config = parent::parseConfig($config);
 
-        if ($config && empty($config['pattern']) && !$this->pattern) {
+        if (false === $config) {
             $this->pattern = '';
             return false;
         }
 
-        if (false === $config) {
+        if ($config && empty($config['pattern']) && !$this->pattern) {
             $this->pattern = '';
             return false;
         }

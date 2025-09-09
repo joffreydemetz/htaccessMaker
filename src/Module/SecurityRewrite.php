@@ -33,7 +33,7 @@ class SecurityRewrite extends RewriteModule
             'blacklistHttpMethods' => ['HEAD', 'TRACE', 'TRACK', 'OPTIONS', 'HEAD', 'PUT', 'DELETE'],
             'blacklistUserAgents' => [],
             'blacklistReferrers' => [],
-            'blockAction' => '/error.html',
+            'blockAction' => '/index.php',
             'blockFlags' => ['R=403', 'L'],
         ], $config);
 
@@ -50,6 +50,7 @@ class SecurityRewrite extends RewriteModule
         }
 
         if (!empty($config['blacklistHttpMethods'])) {
+            $config['blacklistHttpMethods'] = array_unique($config['blacklistHttpMethods']);
             $this->addHttpMethodBlocking($config['blacklistHttpMethods'], $config['blockAction'], $config['blockFlags']);
         }
 

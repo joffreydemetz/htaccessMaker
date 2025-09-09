@@ -30,9 +30,7 @@ class RewriteModule extends IfModule
 
     public function addRewriteBase(string $urlPath): self
     {
-        // Only add RewriteBase if not root
         $this->addDirective(new RewriteBase($urlPath));
-
         return $this;
     }
 

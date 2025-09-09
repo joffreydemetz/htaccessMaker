@@ -57,13 +57,15 @@ class RoutingRewrite extends RewriteModule
 
     public function checkTrailingSlash(bool $mindWellKnown = false): self
     {
-        $this->addDirective(new Comment('Check trailing slash'));
-        $this->addRewriteCond('%{REQUEST_URI}', '!/$');
-        if ($mindWellKnown) {
-            $this->addRewriteCond('%{REQUEST_URI}', '!^/.well-known/?.*');
-        }
-        $this->addRewriteCond('%{REQUEST_FILENAME}', '!-f');
-        $this->addRewriteRule('(.*)$', '/$1/', ['L', 'R=301']);
+        $this->addRewriteCond('%{REQUEST_URI}', '!(/$|\.)');
+        $this->addRewriteRule('(.*)$', '%{REQUEST_URI}/', ['R=301', 'L']);
+        //$this->addDirective(new Comment('Check trailing slash'));
+        // $this->addRewriteCond('%{REQUEST_URI}', '!/$');
+        //if ($mindWellKnown) {
+        //    $this->addRewriteCond('%{REQUEST_URI}', '!^/.well-known/?.*');
+        //}
+        //$this->addRewriteCond('%{REQUEST_FILENAME}', '!-f');
+        //$this->addRewriteRule('(.*)$', '/$1/', ['L', 'R=301']);
         return $this;
     }
 
@@ -73,7 +75,7 @@ class RoutingRewrite extends RewriteModule
             return $this;
         }
 
-        $this->addDirective(new Comment('Route redirects'));
+        //$this->addDirective(new Comment('Route redirects'));
         foreach ($redirects as $redirect) {
             if (is_string($redirect)) {
                 $this->addDirective($redirect);
@@ -97,11 +99,12 @@ class RoutingRewrite extends RewriteModule
     {
         $this->addDirective(new Comment('App ' . basename($appFile) . ' controller'));
         $this->addRewriteCond('%{HTTP_HOST}', '=' . $domain);
-        if ($mindWellKnown) {
-            $this->addRewriteCond('%{REQUEST_URI}', '!^/.well-known/?.*');
-        }
+        //if ($mindWellKnown) {
+        //    $this->addRewriteCond('%{REQUEST_URI}', '!^/.well-known/?.*');
+        //}
         $this->addRewriteCond('%{REQUEST_URI}', '!^/' . $appFile);
         $this->addRewriteCond('%{REQUEST_FILENAME}', '!-f');
+        $this->addRewriteCond('%{REQUEST_FILENAME}', '!-d');
         $this->addRewriteRule('.*', $appFile, ['L']);
         return $this;
     }
@@ -110,9 +113,9 @@ class RoutingRewrite extends RewriteModule
     {
         $this->addDirective(new Comment('Default controller'));
         $this->addRewriteCond('%{REQUEST_URI}', '!^/' . $controller);
-        if ($mindWellKnown) {
-            $this->addRewriteCond('%{REQUEST_URI}', '!^/.well-known/?.*');
-        }
+        //if ($mindWellKnown) {
+        //    $this->addRewriteCond('%{REQUEST_URI}', '!^/.well-known/?.*');
+        //}
         $this->addRewriteCond('%{REQUEST_FILENAME}', '!-f');
         $this->addRewriteCond('%{REQUEST_FILENAME}', '!-d');
         $this->addRewriteRule('^', $controller, ['L']);

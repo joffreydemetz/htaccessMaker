@@ -31,8 +31,11 @@ class ForceSecureRewrite extends RewriteModule
             return;
         }
 
+        $this->addRewriteCond('%{HTTPS}', 'off');
         foreach ($config['excludePaths'] as $path) {
-            $this->addRewriteCond('%{REQUEST_URI}', '!^' . $path, ['NC']);
+            $this->addRewriteCond('%{REQUEST_URI}', '!^' . $path . '$');
         }
+
+        $this->addRewriteRule('^', 'https://%{HTTP_HOST}%{REQUEST_URI}', ['R=301,L']);
     }
 }

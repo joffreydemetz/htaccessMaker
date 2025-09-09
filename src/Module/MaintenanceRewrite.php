@@ -37,7 +37,7 @@ class MaintenanceRewrite extends RewriteModule
 
         // Add maintenance ON section (commented if disabled)
         $onComment = $config['defaultState'] ? '' : '# ';
-        $this->addDirective(new Comment('Maintenance ON'));
+        //$this->addDirective(new Comment('Maintenance ON'));
 
         // Add IP exclusions
         foreach ($config['allowedIps'] as $ip) {
@@ -53,7 +53,7 @@ class MaintenanceRewrite extends RewriteModule
 
         // Add maintenance OFF section (commented if enabled)
         $offComment = $config['defaultState'] ? '# ' : '';
-        $this->addDirective(new Comment('Maintenance OFF'));
+        //$this->addDirective(new Comment('Maintenance OFF'));
         $this->addDirective($offComment . 'RewriteCond %{REQUEST_URI} ^' . $config['maintenanceFile'] . '$');
         $this->addDirective($offComment . 'RewriteRule ^ https://%{HTTP_HOST}/ [L,R=301]');
     }
