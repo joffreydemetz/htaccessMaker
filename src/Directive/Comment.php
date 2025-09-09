@@ -49,14 +49,16 @@ class Comment extends Directive
         $indentStr = str_repeat('  ', $indent);
 
         $output = '';
+
         if ($this->border) {
             $output .= $indentStr . "\n";
             $output .= $indentStr . $this->border . "\n";
         }
-        foreach ($comment as $line) {
-            $output .= $indentStr . '# ' . $line . "\n";
-        }
+
+        $output .= implode("\n", array_map(fn($line) => $indentStr . '# ' . $line, $comment));
+
         if ($this->border) {
+            $output .= "\n";
             $output .= $indentStr . $this->border . "\n";
             $output .= $indentStr . "\n";
         }
