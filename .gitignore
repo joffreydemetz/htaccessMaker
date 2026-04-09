@@ -11,4 +11,5 @@ examples/client.php
 examples/media.class.php
 examples/exports/*
 tests/
-vendor/
+/vendor/
+/.phpunit.cache/

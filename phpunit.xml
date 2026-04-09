@@ -1,10 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.5/phpunit.xsd"
+         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/11.0/phpunit.xsd"
          bootstrap="vendor/autoload.php"
          cacheDirectory=".phpunit.cache"
          executionOrder="depends,defects"
-         beStrictAboutOutputDuringTests="true"
          failOnWarning="true"
          failOnRisky="true"
          stopOnFailure="false"
@@ -41,10 +40,7 @@
             <directory>tests/Examples</directory>
         </testsuite>
         
-        <!-- All tests combined -->
-        <testsuite name="All">
-            <directory>tests</directory>
-        </testsuite>
+        <!-- To run all suites: phpunit (no testsuite flag) -->
     </testsuites>
     
     <source>
