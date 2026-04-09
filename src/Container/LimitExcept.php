@@ -29,7 +29,7 @@ class LimitExcept extends Container
         'authMethods' => [],
     ];
 
-    public function toString(bool $showComments = false, int $indent = 0): string
+    public function toString(bool $showComments = true, int $indent = 0): string
     {
         if (!$this->authMethods) {
             return '';
