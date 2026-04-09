@@ -14,7 +14,6 @@ securityPolicy: true
 csp:
   default:
     - "'none'"
-    # - 'https:'
   style:
     - "'self'"
     - "'unsafe-inline'"
@@ -28,10 +27,7 @@ preventNonSsl:
   - "/favicon/.+$"
   - '/favicon\.ico$'
   - "/media/.+$"
-  - "/thumbs/.+$"
   - '/robots\.txt$'
-  - "/sitemap/.+$"
-  - '/sitemap\/.+\.xml$'
   - '/sitemap\.xml$'
 
 # Browser rendering

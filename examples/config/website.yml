@@ -1,0 +1,105 @@
+redirectMaintenance: true
+checkTrailingSlash: true
+serverSignature: false
+staticFilesExtensions:
+  - js
+  - css
+  - gif
+  - png
+  - jpe?g
+  - pdf
+  - xml
+  - svg
+  - svgz
+  - eot
+  - ttf
+  - otf
+  - woff
+  - ico
+  - webp
+  - json
+
+webCompression: true
+wcMimeTypes:
+  - "text/html"
+  - "text/plain"
+  - "text/xml"
+  - "text/css"
+  - "text/javascript"
+  - "application/xml"
+  - "application/xhtml+xml"
+  - "application/javascript"
+  - "application/json"
+wcBrowserCompatibility: true
+wcFileExclusions:
+  - "/favicon.ico"
+  - "/robots.txt"
+  - "/sitemap.xml"
+wcVaryHeader: true
+
+webCaching: true
+preventCookieMaxAge: 31536000
+preventCookieRemoveCookies: true
+preventCookieSetCacheControl: true
+preventCookieSetConnectionHeaders: true
+preventCookieDisableETags: true
+preventCookieSetVaryHeaders: true
+
+mimeTypes:
+  - { type: font/ttf, extensions: [".ttf"] }
+  - { type: font/woff, extensions: [".woff"] }
+  - { type: font/woff2, extensions: [".woff2"] }
+  - { type: application/vnd.ms-fontobject, extensions: [".eot"] }
+  - { type: application/svg+xml, extensions: [".svg"] }
+
+errorDocuments:
+  - { code: 403, url: "/errors/forbidden.html" }
+  - { code: 404, url: "/errors/notfound.html" }
+  - { code: 500, url: "/errors/internal-error.html" }
+  - { code: 502, url: "/errors/bad-gateway.html" }
+  - { code: 503, url: "/errors/unavailable.html" }
+
+blacklistReferrers: []
+blacklistUserAgents:
+  - "BadBot"
+  - "SpamBot"
+
+allowedIps:
+  - "127.0.0.1"
+  - "::1"
+
+domainApps:
+  - { domain: "www.example.com", file: "index.php" }
+  - { domain: "blog.example.com", file: "blog.php" }
+
+showComments: true
+
+csp:
+  default:
+    - "self"
+  script:
+    - "self"
+    - "unsafe-inline"
+  style:
+    - "self"
+    - "unsafe-inline"
+  font:
+    - "self"
+    - "data"
+  connect:
+    - "self"
+  img:
+    - "self"
+    - "data"
+  child:
+    - "self"
+  media:
+    - "self"
+  object:
+    - "self"
+  manifest:
+    - "self"
+
+rules:
+  - { from: "^old-page/(.*)$", to: "/new-page/$1", flags: ["R=301", "L"] }
+  - { from: "^legacy/(.*)$", to: "/app/$1" }

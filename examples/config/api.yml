@@ -5,10 +5,9 @@ checkTrailingSlash: true
 authMethods:
   - "GET"
   - "POST"
+  - "PUT"
   - "DELETE"
 blacklistHttpMethods:
   - "TRACE"
   - "TRACK"
   - "OPTIONS"
-  - "HEAD"
-  - "PUT"

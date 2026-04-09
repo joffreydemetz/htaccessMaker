@@ -82,7 +82,6 @@ class BaseHtAccess extends MyHtaccess
         }
 
         $container = new Container();
-        $container->addDirective(new Header('X-Callisto-Hi', 'Callisto Framework', 'add'));
         $container->addDirective(new Header('X-Powered-By', null, 'unset'));
         $this->addDirective($container);
 

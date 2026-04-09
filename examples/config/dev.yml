@@ -4,19 +4,14 @@ redirectMaintenance: false
 # Basic Authentication
 protectedDefaultPaths: true
 serverAuthorization: true
-protectedAuthName: "Protected area"
-htPasswordClear: 54np_bb77!
-htPasswordDir: /home/public/
-htPasswordUser: username
+protectedAuthName: "Development Area"
+htPasswordClear: changeme123
+htPasswordDir: /var/www/dev/public/
+htPasswordUser: devuser
 allowedPaths:
-  - favicon/app1/manifest.json
-  - favicon/app2/manifest.json
-  - favicon/app1/browserconfig.xml
-  - favicon/app2/browserconfig.xml
+  - favicon/manifest.json
+  - favicon/browserconfig.xml
 allowedUserBots:
   - "GoogleBot"
   - "BingBot"
-  - "Slurp"
   - "DuckDuckBot"
-  - "Twitterbot"
-  - "facebookexternalhit"

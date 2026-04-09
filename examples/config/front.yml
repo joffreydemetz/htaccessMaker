@@ -15,19 +15,11 @@ cacheRules:
   - { mimeType: "image/jpeg", expiry: "access plus 6 months" }
   - { mimeType: "image/jpg", expiry: "access plus 6 months" }
   - { mimeType: "image/png", expiry: "access plus 6 months" }
-  # - { mimeType: "image/gif", expiry: "access plus 1 month" }
   - { mimeType: "text/css", expiry: "access plus 1 month" }
   - { mimeType: "text/javascript", expiry: "access plus 1 month" }
   - { mimeType: "application/javascript", expiry: "access plus 1 month" }
   - { mimeType: "application/x-javascript", expiry: "access plus 1 month" }
   - { mimeType: "image/x-icon", expiry: "access plus 1 year" }
-  # - { mimeType: "application/pdf", expiry: "access plus 1 month" }
 
 # rewrite
 rewriteBase: /
-# sitemap: true
-# sitemapModals: true
-# disallowRobots:
-#   - "/maintenance.html"
-#   - "/goaway.html"
-# robotsTxt: true
