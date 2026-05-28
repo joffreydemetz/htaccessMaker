@@ -103,10 +103,11 @@ class PreventCookie extends FilesMatch
      */
     public function setVaryHeaders(array $headers): self
     {
+        // Append each value to the Vary response header. `append` (not `set`)
+        // so multiple calls accumulate rather than overwriting; e.g. both
+        // "Accept-Encoding" and "User-Agent" end up in Vary.
         foreach ($headers as $header) {
-            $h = new Header('', $header, 'set');
-            $h->withVary();
-            $this->addDirective($h);
+            $this->addDirective(new Header('Vary', $header, 'append'));
         }
         return $this;
     }

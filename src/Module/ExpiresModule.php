@@ -27,6 +27,7 @@ use JDZ\HtaccessMaker\IfModule;
  */
 class ExpiresModule extends IfModule
 {
+    protected bool $ignoreTag = false;
     protected array $defaults = [
         'cacheRules' => [],
         'defaultExpiry' => null,

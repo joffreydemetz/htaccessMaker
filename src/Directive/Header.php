@@ -50,6 +50,12 @@ class Header extends Directive
 
     public function setCondition(string $condition): self
     {
+        // Apache requires conditions in `env=[!]varname` or `expr=expression` form.
+        // Allow callers to pass bare `!foo` / `foo` (they meant an env var) and
+        // wrap it; pass `env=...` / `expr=...` through verbatim.
+        if ($condition !== '' && !str_starts_with($condition, 'env=') && !str_starts_with($condition, 'expr=')) {
+            $condition = 'env=' . $condition;
+        }
         $this->condition = $condition;
         return $this;
     }
@@ -68,9 +74,12 @@ class Header extends Directive
 
         $parts[] = $this->action;
 
-        if ($this->vary) {
-            $parts[] = 'vary';
-        }
+        // `withVary()` is a no-op — there is no `vary` token in Apache's
+        // Header directive grammar. Use `setCondition('!dont-vary')` (which
+        // wraps as `env=!dont-vary`) to suppress the header per request.
+        // The $vary property is kept for backward-compat with callers that
+        // still call ->withVary(); previously it emitted a bogus `vary`
+        // token that caused Apache "Too many arguments to directive" 500s.
 
         if ($this->header) {
             $parts[] = $this->header;
