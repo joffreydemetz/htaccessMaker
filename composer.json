@@ -18,13 +18,6 @@
             "role": "Lead"
         }
     ],
-    "repositories": [
-        {
-            "type": "path",
-            "url": "../cspMaker",
-            "options": { "symlink": true }
-        }
-    ],
     "require": {
         "php": ">=8.2",
         "jdz/cspmaker": "^1.0"
