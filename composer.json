@@ -1,6 +1,7 @@
 {
     "name": "jdz/htaccessmaker",
     "type": "library",
+    "version": "1.1.0",
     "description": "Build htaccess files",
     "keywords": [
         "JDZ",
@@ -18,8 +19,16 @@
             "role": "Lead"
         }
     ],
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../cspMaker",
+            "options": { "symlink": true }
+        }
+    ],
     "require": {
-        "php": ">=8.2"
+        "php": ">=8.2",
+        "jdz/cspmaker": "^1.0"
     },
     "require-dev": {
         "symfony/yaml": "^7.4",

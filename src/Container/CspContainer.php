@@ -2,7 +2,7 @@
 
 /**
  * (c) Joffrey Demetz <joffrey.demetz@gmail.com>
- * 
+ *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
  */
@@ -10,16 +10,18 @@
 namespace JDZ\HtaccessMaker\Container;
 
 use JDZ\HtaccessMaker\Container;
-use JDZ\HtaccessMaker\Csp;
 use JDZ\HtaccessMaker\Directive\Header;
+use JDZ\CspMaker\CspBuilder;
 
 /**
  * Content Security Policy Container
- * 
- * This container is responsible for setting the Content Security Policy (CSP)
- * headers in the .htaccess file. It allows you to define a default CSP policy
- * and merge it with custom configurations.
- * 
+ *
+ * Apache adapter: builds the policy with jdz/cspmaker and emits it as a
+ * Content-Security-Policy header. The `csp` config is a directive => source(s)
+ * map (short names like `script` are accepted); the optional `integrations`
+ * config applies named third-party recipes (e.g. matomo) so no directive gets
+ * forgotten.
+ *
  * @author  Joffrey Demetz <joffrey.demetz@gmail.com>
  */
 class CspContainer extends Container
@@ -27,8 +29,10 @@ class CspContainer extends Container
     protected array $defaults = [
         'useXContentSecurityPolicy' => false,
         'csp' => [],
+        'integrations' => [],
     ];
 
+    /** Baseline policy merged under whatever the caller supplies. */
     private array $defaultCspPolicy = [
         'default' => ['self'],
         'script' => ['self'],
@@ -52,19 +56,23 @@ class CspContainer extends Container
             return;
         }
 
-        $csp = new Csp($this->defaultCspPolicy);
+        // Baseline defaults, then let the caller's config REPLACE per directive
+        // (a caller that sets default-src 'none' must win over the 'self'
+        // default), then layer integration hosts on top.
+        $builder = CspBuilder::create()->merge($this->defaultCspPolicy);
 
-        // Merge with custom config if provided
-        if ($config['csp']) {
-            $csp->merge($config['csp'], true);
+        foreach ((array) ($config['csp'] ?? []) as $directive => $sources) {
+            $builder->set((string) $directive, $sources);
         }
 
-        // Choose header type based on config
+        if (!empty($config['integrations'])) {
+            $builder->integrations((array) $config['integrations']);
+        }
+
         $headerName = $config['useXContentSecurityPolicy']
             ? 'X-Content-Security-Policy'
             : 'Content-Security-Policy';
 
-        // Add CSP header directive
-        $this->addDirective(new Header($headerName, '"' . (string)$csp . '"'));
+        $this->addDirective(new Header($headerName, '"' . $builder->build() . '"'));
     }
 }
