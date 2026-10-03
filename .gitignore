@@ -10,6 +10,5 @@ examples/config/client.medias.yml
 examples/client.php
 examples/media.class.php
 examples/exports/*
-tests/
 /vendor/
 /.phpunit.cache/
