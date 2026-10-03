@@ -6,11 +6,10 @@ I use this library to manage my clients htaccess files based on their needs and 
 
 ## Features
 
-- **🔒 Security-First**: Built-in security containers for XSS protection, CSRF prevention, and attack blocking
-- **⚡ Performance Optimized**: Compression, caching, and static file optimization
-- **🏗️ Modular Architecture**: Reusable containers and directives for clean code organization
-- **🔧 Flexible Configuration**: YAML/array-based configuration or fluent API
-- **🧪 Fully Tested**: Comprehensive unit test suite with 1000+ tests
+- **🔒 Security-First**: Security headers (anti-XSS, HSTS, referrer policy), Content Security Policy, URL / SQL / shell injection blocking, basic authentication
+- **⚡ Performance Optimized**: Compression, expiry headers, cookie-free static files
+- **🏗️ Modular Architecture**: Directives, containers and Apache-module wrappers that nest freely
+- **🔧 Flexible Configuration**: Array-based `process()` configuration or the fluent API
 - **📝 Type-Safe**: Full PHP type declarations and PHPDoc documentation
 
 ## Installation
@@ -18,6 +17,11 @@ I use this library to manage my clients htaccess files based on their needs and 
 ```bash
 composer require jdz/htaccessmaker
 ```
+
+## Requirements
+
+- PHP 8.2 or higher
+- [`jdz/cspmaker`](https://jdz.joffreydemetz.com/cspmaker) ^1.0 — builds the Content Security Policy
 
 ## Quick Start
 
@@ -28,44 +32,55 @@ composer require jdz/htaccessmaker
 
 use JDZ\HtaccessMaker\HtAccess;
 use JDZ\HtaccessMaker\Container\AntiXSS;
-use JDZ\HtaccessMaker\Container\DeflateModule;
-use JDZ\HtaccessMaker\Container\ExpiresModule;
+use JDZ\HtaccessMaker\Module\DeflateModule;
+use JDZ\HtaccessMaker\Module\ExpiresModule;
 use JDZ\HtaccessMaker\Directive\ServerSignature;
 
 $htaccess = new HtAccess();
 
-// Add security headers
+// Basic directives
+$htaccess->addDirective(new ServerSignature('Off'));
+
+// Security headers
 $antiXSS = new AntiXSS();
 $antiXSS->process([
-    'xssProtection' => '1; mode=block',
     'frameOptions' => 'DENY',
-    'contentTypeOptions' => 'nosniff'
+    'strictTransportSecurity' => 'max-age=31536000; includeSubDomains',
 ]);
 $htaccess->addDirective($antiXSS);
 
-// Add compression
+// Compression
 $compression = new DeflateModule();
 $compression->process([
-    'mimeTypes' => ['text/html', 'text/css', 'application/javascript']
+    'mimeTypes' => ['text/html', 'text/css', 'application/javascript'],
 ]);
 $htaccess->addDirective($compression);
 
-// Add caching rules  
+// Caching rules
 $expires = new ExpiresModule();
 $expires->process([
     'cacheRules' => [
-        ['mimeType' => 'text/css', 'expiry' => '1 year'],
-        ['mimeType' => 'application/javascript', 'expiry' => '1 year']
-    ]
+        ['mimeType' => 'text/css', 'expiry' => 'access plus 1 year'],
+        ['mimeType' => 'application/javascript', 'expiry' => 'access plus 1 year'],
+    ],
 ]);
 $htaccess->addDirective($expires);
 
-// Add basic directives
-$htaccess->addDirective(new ServerSignature('Off'));
-
 // Generate .htaccess content
-echo $htaccess->toString();
+file_put_contents(__DIR__ . '/public/.htaccess', $htaccess->toString());
 ```
+
+### How `process()` works
+
+Every container and module is configured with `process(array $config)`. The
+config is merged over the class defaults (listed in the
+[Configuration Reference](#configuration-reference)).
+
+- A **non-empty** config enables the container. An empty `process()` call adds
+  nothing — pass `['enabled' => true]` to apply the defaults alone.
+- `NegociationModule`, `RoutingRewrite` and `SecurityRewrite` are the
+  exceptions: they always apply their defaults, so `process()` with no argument
+  is enough.
 
 ### Fluent Interface
 
@@ -73,65 +88,79 @@ echo $htaccess->toString();
 <?php
 
 use JDZ\HtaccessMaker\HtAccess;
-use JDZ\HtaccessMaker\Container\AntiXSS;
 use JDZ\HtaccessMaker\Directive\Comment;
 use JDZ\HtaccessMaker\Directive\ServerSignature;
+use JDZ\HtaccessMaker\Module\ForceSecureRewrite;
 
-$antiXSS = new AntiXSS();
-$antiXSS->process([
-    'xssProtection' => '1; mode=block',
-    'frameOptions' => 'SAMEORIGIN',
-    'strictTransportSecurity' => 'max-age=31536000; includeSubDomains'
-]);
+$https = new ForceSecureRewrite();
+$https->process(['excludePaths' => ['/api/webhook']]);
 
 $output = (new HtAccess())
     ->withComments(true)
-    ->ensureApacheCompatibility(true)
+    ->withApacheCompatibility(true)
     ->addDirective(new Comment('Security Configuration'))
     ->addDirective(new ServerSignature('Off'))
-    ->addDirective($antiXSS)
+    ->addDirective($https)
     ->toString();
 
 echo $output;
 ```
 
+### Comments and Apache Compatibility
+
+- `withComments(false)` drops every `Comment` directive and every raw string
+  line that starts with `#` — except comments forced with
+  `setForceComment(true)`.
+- Modules extending `IfModule` print their directives bare by default.
+  `withApacheCompatibility(true)` wraps each of them in its
+  `<IfModule mod_xxx.c>` block (propagated to nested containers).
+  `DeflateModule` and `ExpiresModule` are always wrapped; a single module can be
+  wrapped with `->withIgnoreTag(false)`.
+
 ## Core Components
 
-### Main Classes
+### Main Classes (`JDZ\HtaccessMaker\`)
 
 - **`HtAccess`** - Main class for generating .htaccess files
-- **`HtPasswd`** - Generate .htpasswd files for basic authentication
+- **`HtPasswd`** - Generate .htpasswd files for basic authentication (APR1-MD5); each entry is preceded by its clear-text password as a comment line, so strip it if the file must not hold it
 - **`Container`** - Base class for grouping related directives
+- **`IfModule`** - Container wrapped in `<IfModule …>` (see above)
 - **`Directive`** - Base class for individual Apache directives
-- **`Csp`** - Content Security Policy builder
+- **`EmptyLine`** - A blank line in the output
+- **`Csp`** - *Deprecated* backward-compatible shim over `JDZ\CspMaker\Policy` (keeps `addToGroup()` / `merge($csp, $overwrite)`); use `jdz/cspmaker`'s `CspBuilder` / `Policy` directly
 
-### Security Containers
+### Containers (`JDZ\HtaccessMaker\Container\`)
 
-- **`AntiXSS`** - XSS protection, frame options, content type options
-- **`BasicAuthModule`** - HTTP Basic Authentication setup
-- **`SecurityRewrite`** - URL attack prevention and malicious content blocking
-
-### Performance Containers
-
-- **`DeflateModule`** - Gzip compression configuration
-- **`ExpiresModule`** - Cache expiry headers by MIME type
-- **`BrowserRender`** - Browser compatibility and rendering optimization
-- **`PreventCookie`** - Prevent cookies on static files
-
-### URL Management
-
-- **`RewriteModule`** - Base URL rewriting functionality
-- **`ForceSecureRewrite`** - Force HTTPS redirection
-- **`RedirectWwwRewrite`** - WWW to non-WWW redirection  
-- **`MaintenanceRewrite`** - Maintenance mode with IP whitelisting
-- **`RoutingRewrite`** - Application routing rules
-
-### Content Management
-
-- **`MimeTypes`** - MIME type definitions
+- **`AntiXSS`** - X-XSS-Protection, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Strict-Transport-Security
+- **`CspContainer`** - Content-Security-Policy header, built with `jdz/cspmaker`
+- **`BrowserRender`** - Content-Style-Type / Content-Script-Type headers on PHP and HTML files
+- **`UaCompatible`** - X-UA-Compatible header, optionally unset on static files
+- **`PreventCookie`** - Cookie-free, long-cached static files (a `FilesMatch`)
+- **`MimeTypes`** - `AddType` definitions
 - **`ErrorDocuments`** - Custom error pages
-- **`CspContainer`** - Content Security Policy headers
-- **`UaCompatible`** - Browser compatibility headers
+- **`FilesMatch`** - `<FilesMatch "pattern">` block
+- **`LimitExcept`** - `<LimitExcept METHOD …>` block
+
+### Apache Modules (`JDZ\HtaccessMaker\Module\`)
+
+- **`DeflateModule`** - Gzip compression (`mod_deflate`)
+- **`ExpiresModule`** - Cache expiry headers by MIME type (`mod_expires`)
+- **`BasicAuthModule`** - HTTP Basic Authentication with allowed paths / user agents (`mod_auth_basic`)
+- **`NegociationModule`** - MultiViews and `IndexIgnore` (`mod_negotiation`)
+- **`RewriteModule`** - Base URL rewriting (`mod_rewrite`): `addRewriteBase()`, `addRewriteCond()`, `addRewriteRule()`, `addMaintenanceMode()`
+- **`ForceSecureRewrite`** - Force HTTPS redirection
+- **`RedirectWwwRewrite`** - WWW to non-WWW redirection
+- **`MaintenanceRewrite`** - Maintenance mode with IP whitelisting
+- **`RoutingRewrite`** - Trailing slash, versioned files, per-domain apps and front controller routing
+- **`SecurityRewrite`** - URL attack, SQL / shell injection, HTTP method, user agent and referrer blocking
+
+### Directives (`JDZ\HtaccessMaker\Directive\`)
+
+`AddHandler`, `AddType`, `Comment`, `DirectoryIndex`, `ErrorDocument`,
+`ExpiresByType`, `ExpiresDefault`, `FileETag`, `Header` (`withAlways()`,
+`setCondition()`), `IndexIgnore`, `Options`, `RewriteBase`, `RewriteCond`,
+`RewriteEngine`, `RewriteRule`, `ServerSignature`, and `ValueDirective` (the
+base for single-value directives).
 
 ## Advanced Usage
 
@@ -141,17 +170,17 @@ echo $output;
 <?php
 
 use JDZ\HtaccessMaker\HtAccess;
-use JDZ\HtaccessMaker\Container\SecurityRewrite;
+use JDZ\HtaccessMaker\Module\SecurityRewrite;
 
 $htaccess = new HtAccess();
 
-// Add comprehensive security rules
 $security = new SecurityRewrite();
 $security->process([
-    'blockShellUploaders' => true,
-    'blockSqlInjection' => true,
     'blockUrlAttacks' => true,
-    'blockMaliciousUserAgents' => true
+    'blockSqlInjection' => true,
+    'blockShellInjection' => true,
+    'blockMaliciousRequests' => true,
+    'blacklistUserAgents' => ['badbot'],
 ]);
 
 $htaccess->addDirective($security);
@@ -162,187 +191,136 @@ $htaccess->addDirective($security);
 ```php
 <?php
 
-use JDZ\HtaccessMaker\Container\MaintenanceRewrite;
+use JDZ\HtaccessMaker\Module\MaintenanceRewrite;
 
-$maintenance = new MaintenanceRewrite([
-    '192.168.1.100',  // Allowed IPs
-    '10.0.0.1'
-], '/maintenance.html', false); // Default state: off
+$maintenance = new MaintenanceRewrite();
+$maintenance->process([
+    'allowedIps' => ['192.168.1.100', '10.0.0.1'],
+    'maintenanceFile' => '/maintenance.html',
+    'defaultState' => false, // Default state: off
+]);
 
 // Generates both ON and OFF sections - just uncomment the needed one
 ```
 
-### Multiple Rewrite Modules
+### Routing
 
 ```php
 <?php
 
-use JDZ\HtaccessMaker\HtAccess;
-use JDZ\HtaccessMaker\Container\ForceSecureRewrite;
-use JDZ\HtaccessMaker\Container\SecurityRewrite;
-use JDZ\HtaccessMaker\Container\RoutingRewrite;
+use JDZ\HtaccessMaker\Module\RoutingRewrite;
 
-$htaccess = new HtAccess();
-
-// Force HTTPS (excluding certain paths)
-$httpsRedirect = new ForceSecureRewrite(['/api/webhook']);
-$htaccess->addDirective($httpsRedirect);
-
-// Security rules
-$security = new SecurityRewrite();
-$htaccess->addDirective($security);
-
-// Application routing
 $routing = new RoutingRewrite();
 $routing->process([
-    'rewriteBase' => '/',
-    'indexFile' => 'index.php'
+    'baseUrl' => '/',
+    'defaultController' => 'index.php',
+    'domainApps' => [
+        ['domain' => 'api.example.com', 'file' => 'api.php'],
+    ],
+    'rules' => [
+        ['from' => '^old-page/?$', 'to' => '/new-page/'], // flags default to R=301,L
+    ],
 ]);
-$htaccess->addDirective($routing);
 ```
 
-### Comments and Apache Compatibility
+### Content Security Policy
 
 ```php
 <?php
 
-use JDZ\HtaccessMaker\HtAccess;
-use JDZ\HtaccessMaker\Container\DeflateModule;
-use JDZ\HtaccessMaker\Directive\Comment;
+use JDZ\HtaccessMaker\Container\CspContainer;
 
-$htaccess = new HtAccess();
-
-// Control comments and Apache compatibility
-$htaccess
-    ->withComments(true)           // Enable/disable comments
-    ->ensureApacheCompatibility(true); // Wrap containers in IfModule
-
-$htaccess->addDirective(new Comment('Performance optimizations'));
-
-// DeflateModule always renders regardless of ensureApacheCompatibility setting
-$compression = new DeflateModule();
-$compression->process(['mimeTypes' => ['text/html', 'text/css']]);
-$htaccess->addDirective($compression);
-
-echo $htaccess->toString();
+$csp = new CspContainer();
+$csp->process([
+    'csp' => [
+        'script' => ['self', 'https://cdn.example.com'],
+        'frame-ancestors' => ['none'],
+    ],
+    'integrations' => [
+        'googleFonts',
+        ['matomo' => ['host' => 'stats.example.com']],
+    ],
+]);
 ```
+
+Each `csp` entry replaces that directive's default; short directive names
+(`script`, `img`, …) and source keywords (`self`, `none`, `data`) are normalized
+by `jdz/cspmaker`. `integrations` applies its named recipes (`matomo`,
+`googleFonts`, `googleAnalytics`, `googleTagManager`, `youtube`, `recaptcha`,
+`stripe`).
 
 ## Configuration Reference
 
-### AntiXSS Configuration
+Defaults in parentheses.
 
-```php
-$antiXSS = new AntiXSS();
-$antiXSS->process([
-    'xssProtection' => '1; mode=block',
-    'frameOptions' => 'DENY|SAMEORIGIN|ALLOW-FROM uri',
-    'contentTypeOptions' => 'nosniff',
-    'referrerPolicy' => 'strict-origin-when-cross-origin',
-    'strictTransportSecurity' => 'max-age=31536000; includeSubDomains'
-]);
-```
-
-### Compression Configuration
-
-```php
-$compression = new DeflateModule();
-$compression->process([
-    'mimeTypes' => [
-        'text/html',
-        'text/css', 
-        'application/javascript',
-        'application/json',
-        'image/svg+xml'
-    ]
-]);
-```
-
-### Cache Expiry Configuration
-
-```php
-$expires = new ExpiresModule();
-$expires->process([
-    'cacheRules' => [
-        ['mimeType' => 'text/css', 'expiry' => '1 year'],
-        ['mimeType' => 'application/javascript', 'expiry' => '1 year'],
-        ['mimeType' => 'image/png', 'expiry' => '1 month'],
-        ['mimeType' => 'image/jpeg', 'expiry' => '1 month']
-    ]
-]);
-```
-
-### Basic Authentication Configuration
-
-```php
-$basicAuth = new BasicAuthModule();
-$basicAuth->process([
-    'realm' => 'Restricted Area',
-    'userFile' => '/path/to/.htpasswd',
-    'require' => 'valid-user',
-    'allowedIps' => ['192.168.1.0/24']
-]);
-```
-
-## Testing
-
-Work in progress 
-
-Run the comprehensive test suite:
-
-```bash
-# Run all tests
-./vendor/bin/phpunit
-
-# Run all tests with testdox format
-./vendor/bin/phpunit --testdox
-
-# Run specific test suites
-./vendor/bin/phpunit --testsuite=Core
-./vendor/bin/phpunit --testsuite=Container
-./vendor/bin/phpunit --testsuite=Directive
-./vendor/bin/phpunit --testsuite=Examples
-
-# Using composer scripts
-composer test
-composer test:core
-```
+| Class | `process()` keys |
+|---|---|
+| `AntiXSS` | `xssProtection` (`1; mode=block`), `frameOptions` (`SAMEORIGIN`), `contentTypeOptions` (`nosniff`), `refererPolicy` (`strict-origin-when-cross-origin`), `strictTransportSecurity` (empty = not sent) |
+| `CspContainer` | `csp` (directive => sources), `integrations`, `useXContentSecurityPolicy` (`false`); default policy: `default`/`script`/`style`/`font`/`connect`/`child`/`media`/`object`/`manifest` `'self'`, `img` `'self' data:` |
+| `UaCompatible` | `browsers` (`IE=Edge`), `unsetOnStaticFiles` (`true`), `staticFilesExtensions` |
+| `PreventCookie` | `maxAge` (`31536000`), `removeCookies`, `setCacheControl`, `setVaryHeaders`, `setConnectionHeaders`, `disableETags` (all `true`); matches `css js png jpg jpeg gif ico svg woff woff2 ttf eot` files |
+| `MimeTypes` | `mimeTypes` (`['type' => '.ext']` or `[['type' => …, 'extensions' => […]]]`; empty = common web types), `includeCommonWeb`, `includeImages`, `includeDocuments` |
+| `ErrorDocuments` | `errorDocuments` (`[404 => '/404.html']` or `[['code' => 404, 'url' => …]]`; default 404 → `/error-404.html`), `commonErrorPages` (base URL for 400–503 pages), `customErrors` |
+| `FilesMatch` | `pattern` |
+| `LimitExcept` | `authMethods` |
+| `DeflateModule` | `mimeTypes` (`text/html`, `text/css`, `application/javascript`, `application/json`), `browserCompatibility` (`true`), `fileExclusions` (`[]`), `varyHeader` (`true`) |
+| `ExpiresModule` | `cacheRules` (`[['mimeType' => …, 'expiry' => 'access plus 1 month']]`), `defaultExpiry`, `useCommonRules` (`true` — used when `cacheRules` is empty, with a 2-day default) |
+| `BasicAuthModule` | `authName` (`Protected Area`), `authUserFile`, `allowedPaths`, `allowedUserAgents`, `passwordComment`, `defaultPaths` (`true` — favicon manifest files) |
+| `NegociationModule` | `multiViews` (`false`), `indexIgnore` (`*`), `customOptions` |
+| `ForceSecureRewrite` | `excludePaths` |
+| `RedirectWwwRewrite` | — (`['enabled' => true]`) |
+| `MaintenanceRewrite` | `allowedIps`, `maintenanceFile` (`/maintenance.html`), `defaultState` (`false`) |
+| `RoutingRewrite` | `baseUrl` (`/`), `checkTrailingSlash` (`true`), `versionedFiles` (`true`), `domainApps` (`[['domain' => …, 'file' => …]]`), `rules` (raw strings or `['from', 'to', 'flags']`), `defaultController` (`index.php`) |
+| `SecurityRewrite` | `blockUrlAttacks`, `blockSqlInjection`, `blockShellInjection`, `blockMaliciousRequests` (all `true`), `blacklistHttpMethods` (`HEAD TRACE TRACK OPTIONS PUT DELETE`), `blacklistUserAgents`, `blacklistReferrers`, `blockAction` (`/index.php`), `blockFlags` (`R=403,L`) |
+| `BrowserRender` | — (`['enabled' => true]`) |
 
 ## API Reference
 
 ### HtAccess Methods
 
 ```php
-// Fluent interface methods
 $htaccess->withComments(bool $showComments = true): self
-$htaccess->ensureApacheCompatibility(bool $ensure = true): self
+$htaccess->withApacheCompatibility(bool $ensure = true): self
 $htaccess->addDirective(Directive|Container|string $directive): self
-
-// Utility methods
 $htaccess->toString(): string
-$htaccess->directiveToString(Directive|Container|string $directive, bool $showComments = true, int $indent = 0): string
+
+// Render a single directive or container on its own
+HtAccess::stringifyDirective(Directive|Container|string $directive, bool $showComments = true, bool $ensureApacheCompatibility = true, int $indent = 0): string
 ```
 
 ### Container Methods
 
 ```php
 // All containers support
-$container->process(array $config=[]): void
+$container->process(array $config = []): void
 $container->addDirective(Directive|Container|string $directive): self
+$container->ensureApacheCompatibility(): self
 $container->toString(bool $showComments = true, int $indent = 0): string
+```
+
+### HtPasswd Methods
+
+```php
+$htpasswd->addUser(string $name, string $password): self
+$htpasswd->toString(): string
 ```
 
 ## Project Structure
 
 ```
 src/
-├── Container.php             # Base container class
-├── Directive.php             # Base directive class  
 ├── HtAccess.php              # Main .htaccess generator
 ├── HtPasswd.php              # .htpasswd generator
-├── Csp.php                   # Content Security Policy builder
-├── Container/                # Specialized containers
+├── Container.php             # Base container class
+├── IfModule.php              # <IfModule> container
+├── Directive.php             # Base directive class
+├── EmptyLine.php
+├── Csp.php                   # Deprecated shim over jdz/cspmaker
+├── Container/                # Header, CSP, MIME, error, FilesMatch… containers
 │   ├── AntiXSS.php
-│   ├── BasicAuthModule.php
+│   ├── CspContainer.php
+│   └── ...
+├── Module/                   # Apache module wrappers (IfModule)
 │   ├── DeflateModule.php
 │   ├── ExpiresModule.php
 │   ├── RewriteModule.php
@@ -350,29 +328,25 @@ src/
 └── Directive/                # Apache directive classes
     ├── Header.php
     ├── RewriteRule.php
-    ├── Options.php
-    ├── AddHandler.php
     └── ...
-
-tests/                        # Comprehensive test suite
-├── Container/
-├── Directive/
-├── Examples/
-└── ...
 ```
 
 ## Examples
 
-See the `examples/` directory for complete working examples:
+See the `examples/` directory for a complete, configuration-driven setup (it
+uses `symfony/yaml` and `jdz/data`, both dev dependencies):
 
-- **`example.php`** - Comprehensive .htaccess generation
-- **`base.class.php`** - Configuration-driven approach
-- **`config/`** - YAML configuration examples
+- **`example.php`** - Generates a website, an API and a password-protected dev .htaccess into `examples/exports/`
+- **`base.class.php`** - `BaseHtAccess`, which maps the YAML keys onto the containers and modules
+- **`myhtaccess.php`** - The YAML config loader and the `createHtAccessFromConfig()` helper
+- **`config/`** - YAML configuration layers (`core`, `web`, `front`, `website`, `api`, `dev`)
 
-## Requirements
+## Changelog
 
-- PHP 8.1 or higher
-- Composer
+- **1.1.1** - `jdz/cspmaker` is resolved from Packagist (no local path repository).
+- **1.1.0** - CSP building moved to `jdz/cspmaker` (new dependency): `CspContainer` builds through `CspBuilder` and accepts `integrations`; `Csp` becomes a deprecated shim over `JDZ\CspMaker\Policy`.
+- **1.0.9** - Fixed malformed `Header` / `ExpiresModule` output that made Apache answer 500: `Header::withVary()` is a no-op, `setCondition()` emits `env=…`, `PreventCookie` appends real `Vary` headers, `ExpiresModule` is always wrapped in its `<IfModule>`.
+- **1.0.8** - `FilesMatch` / `LimitExcept` show comments by default.
 
 ## License
 
