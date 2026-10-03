@@ -122,7 +122,7 @@ echo $output;
 ### Main Classes (`JDZ\HtaccessMaker\`)
 
 - **`HtAccess`** - Main class for generating .htaccess files
-- **`HtPasswd`** - Generate .htpasswd files for basic authentication (APR1-MD5); each entry is preceded by its clear-text password as a comment line, so strip it if the file must not hold it
+- **`HtPasswd`** - Generate .htpasswd files for basic authentication (APR1-MD5); only `name:hash` lines are written, never the clear-text password
 - **`Container`** - Base class for grouping related directives
 - **`IfModule`** - Container wrapped in `<IfModule …>` (see above)
 - **`Directive`** - Base class for individual Apache directives

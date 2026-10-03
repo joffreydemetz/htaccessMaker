@@ -30,7 +30,6 @@ class HtPasswd
     $str = '';
 
     foreach ($this->users as $user) {
-      $str .= '# ' . $user['password'] . "\n";
       $str .= $user['name'] . ':' . $user['encryptedPassword'] . "\n";
     }
 
@@ -41,7 +40,6 @@ class HtPasswd
   {
     $this->users[] = [
       'name' => $name,
-      'password' => $password,
       // Use APR1-MD5 encryption for compatibility with Apache's htpasswd
       'encryptedPassword' => $this->crypt_apr1_md5($password),
     ];
