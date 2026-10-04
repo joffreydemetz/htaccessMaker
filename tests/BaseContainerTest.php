@@ -7,7 +7,7 @@ namespace Tests;
 use PHPUnit\Framework\TestCase;
 use JDZ\HtaccessMaker\Container;
 
-class BaseContainerTest extends TestCase
+abstract class BaseContainerTest extends TestCase
 {
     protected string $containerClass = Container::class;
     protected bool $noCreationTest = false;

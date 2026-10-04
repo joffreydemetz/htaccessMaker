@@ -24,7 +24,7 @@
     },
     "require-dev": {
         "symfony/yaml": "^7.4",
-        "jdz/data": "^1.0",
+        "jdz/data": "^2.0",
         "phpunit/phpunit": "^11.0"
     },
     "autoload": {
@@ -39,10 +39,10 @@
     },
     "scripts": {
         "test": "phpunit --colors=always --testdox",
-        "test:directive": "phpunit --testsuite directive --colors=always --testdox",
-        "test:container": "phpunit --testsuite container --colors=always --testdox",
-        "test:module": "phpunit --testsuite module --colors=always --testdox",
-        "test:examples": "phpunit --testsuite examples --colors=always --testdox",
-        "test:core": "phpunit --testsuite core --colors=always --testdox"
+        "test:directive": "phpunit --testsuite Directive --colors=always --testdox",
+        "test:container": "phpunit --testsuite Container --colors=always --testdox",
+        "test:module": "phpunit --testsuite Module --colors=always --testdox",
+        "test:examples": "phpunit --testsuite Examples --colors=always --testdox",
+        "test:core": "phpunit --testsuite Core --colors=always --testdox"
     }
 }
