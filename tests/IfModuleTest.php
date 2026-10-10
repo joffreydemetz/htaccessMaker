@@ -4,18 +4,12 @@ declare(strict_types=1);
 
 namespace Tests\Container;
 
-use Tests\ContainerTest;
+use PHPUnit\Framework\TestCase;
 use JDZ\HtaccessMaker\IfModule;
 use JDZ\HtaccessMaker\Directive\ServerSignature;
 
-class IfModuleTest extends ContainerTest
+class IfModuleTest extends TestCase
 {
-    protected string $containerClass = IfModule::class;
-    protected bool $noCreationTest = true;
-    protected bool $noEmptiesTest = true;
-    protected bool $noDefaultsTest = true;
-    protected bool $skipDirectiveTests = true;
-
     public function testIfModuleAttributes(): void
     {
         $container = new IfModule('mod_rewrite.c');

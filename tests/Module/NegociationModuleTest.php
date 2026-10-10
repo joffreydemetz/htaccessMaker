@@ -4,11 +4,18 @@ declare(strict_types=1);
 
 namespace Tests\Container;
 
-use Tests\ContainerTest;
+use Tests\BaseContainerTest;
+use Tests\DirectiveContainerTests;
+use Tests\ContainerDefaultsTests;
 use JDZ\HtaccessMaker\Module\NegociationModule;
 
-class NegociationModuleTest extends ContainerTest
+class NegociationModuleTest extends BaseContainerTest
 {
+    use DirectiveContainerTests;
+    use ContainerDefaultsTests;
+
+    protected string $containerClass = NegociationModule::class;
+
     public function testNegociationModuleWithMultiViewsEnabled(): void
     {
         $container = new NegociationModule();

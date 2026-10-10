@@ -4,14 +4,15 @@ declare(strict_types=1);
 
 namespace Tests\Container;
 
-use Tests\ContainerTest;
+use Tests\BaseContainerTest;
+use Tests\EmptyContainerTests;
 use JDZ\HtaccessMaker\Module\BasicAuthModule;
 
-class BasicAuthModuleTest extends ContainerTest
+class BasicAuthModuleTest extends BaseContainerTest
 {
+    use EmptyContainerTests;
+
     protected string $containerClass = BasicAuthModule::class;
-    protected bool $noDefaultsTest = true;
-    protected bool $skipDirectiveTests = true;
 
     public function testBasicAuthModuleWithSimpleAuth(): void
     {

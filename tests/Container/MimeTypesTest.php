@@ -4,13 +4,17 @@ declare(strict_types=1);
 
 namespace Tests\Container;
 
-use Tests\ContainerTest;
+use Tests\BaseContainerTest;
+use Tests\EmptyContainerTests;
+use Tests\DirectiveContainerTests;
 use JDZ\HtaccessMaker\Container\MimeTypes;
 
-class MimeTypesTest extends ContainerTest
+class MimeTypesTest extends BaseContainerTest
 {
+    use EmptyContainerTests;
+    use DirectiveContainerTests;
+
     protected string $containerClass = MimeTypes::class;
-    protected bool $noDefaultsTest = true;
 
     public function testMimeTypesWithBasicConfig(): void
     {

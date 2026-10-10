@@ -4,11 +4,18 @@ declare(strict_types=1);
 
 namespace Tests\Container;
 
-use Tests\ContainerTest;
+use Tests\BaseContainerTest;
+use Tests\DirectiveContainerTests;
+use Tests\ContainerDefaultsTests;
 use JDZ\HtaccessMaker\Module\DeflateModule;
 
-class DeflateModuleTest extends ContainerTest
+class DeflateModuleTest extends BaseContainerTest
 {
+    use DirectiveContainerTests;
+    use ContainerDefaultsTests;
+
+    protected string $containerClass = DeflateModule::class;
+
     public function testDeflateModuleWithDefaults(): void
     {
         $container = new DeflateModule();

@@ -4,14 +4,15 @@ declare(strict_types=1);
 
 namespace Tests\Container;
 
-use Tests\ContainerTest;
+use Tests\BaseContainerTest;
+use Tests\EmptyContainerTests;
 use JDZ\HtaccessMaker\Container\LimitExcept;
 
-class LimitExceptTest extends ContainerTest
+class LimitExceptTest extends BaseContainerTest
 {
+    use EmptyContainerTests;
+
     protected string $containerClass = LimitExcept::class;
-    protected bool $noDefaultsTest = true;
-    protected bool $skipDirectiveTests = true;
 
     public function testLimitExceptWithMethods(): void
     {

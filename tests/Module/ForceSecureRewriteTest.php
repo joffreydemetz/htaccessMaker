@@ -4,11 +4,18 @@ declare(strict_types=1);
 
 namespace Tests\Container;
 
-use Tests\ContainerTest;
+use Tests\BaseContainerTest;
+use Tests\DirectiveContainerTests;
+use Tests\ContainerDefaultsTests;
 use JDZ\HtaccessMaker\Module\ForceSecureRewrite;
 
-class ForceSecureRewriteTest extends ContainerTest
+class ForceSecureRewriteTest extends BaseContainerTest
 {
+    use DirectiveContainerTests;
+    use ContainerDefaultsTests;
+
+    protected string $containerClass = ForceSecureRewrite::class;
+
     public function testForceSecureRewriteBasic(): void
     {
         $container = new ForceSecureRewrite();

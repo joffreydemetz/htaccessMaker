@@ -4,11 +4,18 @@ declare(strict_types=1);
 
 namespace Tests\Container;
 
-use Tests\ContainerTest;
+use Tests\BaseContainerTest;
+use Tests\DirectiveContainerTests;
+use Tests\ContainerDefaultsTests;
 use JDZ\HtaccessMaker\Module\RewriteModule;
 
-class RewriteModuleTest extends ContainerTest
+class RewriteModuleTest extends BaseContainerTest
 {
+    use DirectiveContainerTests;
+    use ContainerDefaultsTests;
+
+    protected string $containerClass = RewriteModule::class;
+
     public function testRewriteModuleCreation(): void
     {
         $container = new RewriteModule();

@@ -4,11 +4,18 @@ declare(strict_types=1);
 
 namespace Tests\Container;
 
-use Tests\ContainerTest;
+use Tests\BaseContainerTest;
+use Tests\EmptyContainerTests;
+use Tests\DirectiveContainerTests;
+use Tests\ContainerDefaultsTests;
 use JDZ\HtaccessMaker\Container\PreventCookie;
 
-class PreventCookieTest extends ContainerTest
+class PreventCookieTest extends BaseContainerTest
 {
+    use EmptyContainerTests;
+    use DirectiveContainerTests;
+    use ContainerDefaultsTests;
+
     protected string $containerClass = PreventCookie::class;
 
     public function testPreventCookieWithDefaultPattern(): void

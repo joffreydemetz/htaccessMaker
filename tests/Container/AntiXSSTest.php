@@ -4,11 +4,18 @@ declare(strict_types=1);
 
 namespace Tests\Container;
 
-use Tests\ContainerTest;
+use Tests\BaseContainerTest;
+use Tests\EmptyContainerTests;
+use Tests\DirectiveContainerTests;
+use Tests\ContainerDefaultsTests;
 use JDZ\HtaccessMaker\Container\AntiXSS;
 
-class AntiXSSTest extends ContainerTest
+class AntiXSSTest extends BaseContainerTest
 {
+    use EmptyContainerTests;
+    use DirectiveContainerTests;
+    use ContainerDefaultsTests;
+
     protected string $containerClass = AntiXSS::class;
 
     public function testProcessWithCustomConfig(): void

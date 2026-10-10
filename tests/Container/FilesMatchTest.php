@@ -4,14 +4,15 @@ declare(strict_types=1);
 
 namespace Tests\Container;
 
-use Tests\ContainerTest;
+use Tests\BaseContainerTest;
+use Tests\EmptyContainerTests;
 use JDZ\HtaccessMaker\Container\FilesMatch;
 
-class FilesMatchTest extends ContainerTest
+class FilesMatchTest extends BaseContainerTest
 {
+    use EmptyContainerTests;
+
     protected string $containerClass = FilesMatch::class;
-    protected bool $noDefaultsTest = true;
-    protected bool $skipDirectiveTests = true;
 
     public function testFilesMatchWithPattern(): void
     {

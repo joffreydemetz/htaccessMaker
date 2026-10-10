@@ -4,11 +4,18 @@ declare(strict_types=1);
 
 namespace Tests\Container;
 
-use Tests\ContainerTest;
+use Tests\BaseContainerTest;
+use Tests\DirectiveContainerTests;
+use Tests\ContainerDefaultsTests;
 use JDZ\HtaccessMaker\Module\RedirectWwwRewrite;
 
-class RedirectWwwRewriteTest extends ContainerTest
+class RedirectWwwRewriteTest extends BaseContainerTest
 {
+    use DirectiveContainerTests;
+    use ContainerDefaultsTests;
+
+    protected string $containerClass = RedirectWwwRewrite::class;
+
     public function testRedirectWwwRewrite(): void
     {
         $container = new RedirectWwwRewrite();

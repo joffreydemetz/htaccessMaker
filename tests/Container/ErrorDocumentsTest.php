@@ -4,11 +4,18 @@ declare(strict_types=1);
 
 namespace Tests\Container;
 
-use Tests\ContainerTest;
+use Tests\BaseContainerTest;
+use Tests\EmptyContainerTests;
+use Tests\DirectiveContainerTests;
+use Tests\ContainerDefaultsTests;
 use JDZ\HtaccessMaker\Container\ErrorDocuments;
 
-class ErrorDocumentsTest extends ContainerTest
+class ErrorDocumentsTest extends BaseContainerTest
 {
+    use EmptyContainerTests;
+    use DirectiveContainerTests;
+    use ContainerDefaultsTests;
+
     protected string $containerClass = ErrorDocuments::class;
 
     public function testErrorDocumentsWithBasicConfig(): void
