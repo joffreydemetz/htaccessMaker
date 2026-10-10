@@ -128,55 +128,77 @@ class SecurityRewriteTest extends TestCase
         $this->assertSame("RewriteEngine On\n\n", $module->toString());
     }
 
-    // The next three only check fragments on purpose: addUserAgentBlocking() and
-    // addRequestBlocking() render lines that are reported as bugs, not pinned.
-
-    public function testSecurityRewriteWithUserAgentBlocking(): void
+    public static function userAgentCases(): array
     {
-        $container = new SecurityRewrite();
-        $container->ensureApacheCompatibility();
-        $container->addUserAgentBlocking(['badbot', 'scraper']);
+        $illegal = "RewriteCond %{HTTP_USER_AGENT} (<|>|'|%0A|%0D|%27|%3C|%3E|%00) [NC";
 
-        $output = $container->toString();
-
-        $this->assertStringContainsString('<IfModule mod_rewrite.c>', $output);
-        $this->assertStringContainsString('RewriteEngine On', $output);
-        $this->assertStringContainsString('# Block malicious user agents', $output);
-        $this->assertStringContainsString('RewriteCond %{HTTP_USER_AGENT}', $output);
-        $this->assertStringContainsString('[F]', $output);
-        $this->assertStringContainsString('</IfModule>', $output);
+        return [
+            // the chain used to end on (bot|crawler|spider|scraper): every crawler, Googlebot included, was blocked
+            'listed agents' => [['badbot', 'scraper'], true, self::lines(
+                '# Block malicious user agents',
+                '# Block empty user agent strings',
+                'RewriteCond %{HTTP_USER_AGENT} ^$ [OR]',
+                $illegal . ',OR]',
+                'RewriteCond %{HTTP_USER_AGENT} badbot [NC,OR]',
+                'RewriteCond %{HTTP_USER_AGENT} scraper [NC]',
+                'RewriteRule .* index.php [F]',
+            )],
+            'empty agents only' => [[], true, self::lines(
+                '# Block malicious user agents',
+                '# Block empty user agent strings',
+                'RewriteCond %{HTTP_USER_AGENT} ^$ [OR]',
+                $illegal . ']',
+                'RewriteRule .* index.php [F]',
+            )],
+            // the illegal-characters condition used to be left with [OR] and no rule
+            'illegal characters only' => [[], false, self::lines(
+                '# Block malicious user agents',
+                $illegal . ']',
+                'RewriteRule .* index.php [F]',
+            )],
+        ];
     }
 
-    public function testSecurityRewriteWithRequestBlocking(): void
+    #[DataProvider('userAgentCases')]
+    public function testUserAgentBlockingEndsItsOrChainOnTheLastCondition(array $agents, bool $blockEmpty, string $expected): void
     {
-        $container = new SecurityRewrite();
-        $container->ensureApacheCompatibility();
-        $container->addRequestBlocking();
+        $module = new SecurityRewrite();
+        $module->addUserAgentBlocking($agents, $blockEmpty);
 
-        $output = $container->toString();
-
-        $this->assertStringContainsString('<IfModule mod_rewrite.c>', $output);
-        $this->assertStringContainsString('RewriteEngine On', $output);
-        $this->assertStringContainsString('# Block malicious request patterns', $output);
-        $this->assertStringContainsString('RewriteCond', $output);
-        $this->assertStringContainsString('%00|%08|%09', $output);
-        $this->assertStringContainsString('[F]', $output);
-        $this->assertStringContainsString('</IfModule>', $output);
+        $this->assertSame($expected, $module->toString());
     }
 
-    public function testSecurityRewriteWithEmptyUserAgentBlocking(): void
+    public function testRequestBlocking(): void
     {
-        $container = new SecurityRewrite();
-        $container->ensureApacheCompatibility();
-        $container->addUserAgentBlocking([], true);
+        $module = new SecurityRewrite();
+        $module->addRequestBlocking();
 
-        $output = $container->toString();
+        $this->assertSame(self::lines(
+            '# Block malicious request patterns',
+            'RewriteCond %{THE_REQUEST} (\r|\n|%0A|%0D) [NC,OR]',
+            'RewriteCond %{REQUEST_URI} ^/(,|;|:|<|>|">|"<|/|\\\\\.\.\\\\) [NC,OR]',
+            // ../ or ..\ (the pipe was escaped: it matched a literal "..|%2e%2e")
+            'RewriteCond %{REQUEST_URI} (\.\./|\.\.\\\\|%2e%2e) [NC,OR]',
+            'RewriteCond %{REQUEST_URI} (%00|%08|%09|%0a|%0b|%0c|%0d) [NC]',
+            'RewriteRule .* index.php [F]',
+        ), $module->toString());
+    }
 
-        $this->assertStringContainsString('<IfModule mod_rewrite.c>', $output);
-        $this->assertStringContainsString('RewriteEngine On', $output);
-        $this->assertStringContainsString('# Block empty user agent strings', $output);
-        $this->assertStringContainsString('RewriteCond %{HTTP_USER_AGENT} ^$', $output);
-        $this->assertStringContainsString('</IfModule>', $output);
+    /**
+     * Apache compiles RewriteCond patterns when it reads the .htaccess: one that does
+     * not compile is a 500 on every request. The malformed-URI pattern had its closing
+     * parenthesis escaped.
+     */
+    public function testEveryRequestBlockingPatternCompiles(): void
+    {
+        $module = new SecurityRewrite();
+        $module->addRequestBlocking();
+        preg_match_all('/^RewriteCond \S+ (.+) \[[^\]]+\]$/m', $module->toString(), $m);
+
+        $this->assertCount(4, $m[1]);
+        foreach ($m[1] as $pattern) {
+            $this->assertNotFalse(@preg_match('#' . str_replace('#', '\#', $pattern) . '#', ''), $pattern);
+        }
     }
 
     /**

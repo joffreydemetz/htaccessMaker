@@ -178,11 +178,12 @@ class SecurityRewrite extends RewriteModule
         // Block requests with illegal characters in THE_REQUEST
         $this->addRewriteCond('%{THE_REQUEST}', '(\\r|\\n|%0A|%0D)', ['NC', 'OR']);
 
-        // Block malformed URIs
-        $this->addRewriteCond('%{REQUEST_URI}', '^/(,|;|:|<|>|"|>|"<|/|\\\.\.\\)', ['NC', 'OR']);
+        // Block malformed URIs (renders \\\.\.\\ : a literal \..\ ; the closing
+        // parenthesis used to be escaped, so Apache could not compile the pattern)
+        $this->addRewriteCond('%{REQUEST_URI}', '^/(,|;|:|<|>|">|"<|/|\\\\\\.\\.\\\\)', ['NC', 'OR']);
 
-        // Block directory traversal attempts
-        $this->addRewriteCond('%{REQUEST_URI}', '(\.\./|\.\.\|%2e%2e)', ['NC', 'OR']);
+        // Block directory traversal attempts: ../ or ..\ (the pipe used to be escaped)
+        $this->addRewriteCond('%{REQUEST_URI}', '(\.\./|\.\.\\\\|%2e%2e)', ['NC', 'OR']);
 
         // Block null bytes and other dangerous characters
         $this->addRewriteCond('%{REQUEST_URI}', '(%00|%08|%09|%0a|%0b|%0c|%0d)', ['NC']);
@@ -202,19 +203,16 @@ class SecurityRewrite extends RewriteModule
             $this->addRewriteCond('%{HTTP_USER_AGENT}', '^$', ['OR']);
         }
 
-        // Block user agents with illegal characters
-        $this->addRewriteCond('%{HTTP_USER_AGENT}', '(<|>|\'|%0A|%0D|%27|%3C|%3E|%00)', ['NC', 'OR']);
-
-        // Block specific malicious user agents if provided
-        foreach ($blockedAgents as $agent) {
-            $this->addRewriteCond('%{HTTP_USER_AGENT}', $agent, ['NC', 'OR']);
+        // user agents with illegal characters, then the listed ones: one OR chain whose
+        // last condition carries no OR (it used to end on (bot|crawler|spider|scraper),
+        // which blocked every crawler, Googlebot included)
+        $patterns = ['(<|>|\'|%0A|%0D|%27|%3C|%3E|%00)', ...array_values($blockedAgents)];
+        $last = count($patterns) - 1;
+        foreach ($patterns as $i => $pattern) {
+            $this->addRewriteCond('%{HTTP_USER_AGENT}', $pattern, $i < $last ? ['NC', 'OR'] : ['NC']);
         }
 
-        // Remove the last OR if we have conditions
-        if ($blockEmpty || !empty($blockedAgents)) {
-            $this->addRewriteCond('%{HTTP_USER_AGENT}', '(bot|crawler|spider|scraper)', ['NC']);
-            $this->addRewriteRule('.*', $blockAction, $flags);
-        }
+        $this->addRewriteRule('.*', $blockAction, $flags);
 
         // $this->addDirective(new Comment('END User agent blocking'));
 
