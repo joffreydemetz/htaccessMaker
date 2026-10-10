@@ -4,13 +4,15 @@
          bootstrap="vendor/autoload.php"
          cacheDirectory=".phpunit.cache"
          executionOrder="depends,defects"
-         failOnWarning="true"
+         requireCoverageMetadata="false"
+         beStrictAboutCoverageMetadata="false"
+         beStrictAboutOutputDuringTests="true"
+         displayDetailsOnPhpunitDeprecations="true"
+         displayDetailsOnTestsThatTriggerDeprecations="true"
+         displayDetailsOnTestsThatTriggerWarnings="true"
          failOnRisky="true"
-         stopOnFailure="false"
-         colors="true">
-    
+         failOnWarning="true">
     <testsuites>
-        <!-- Core root classes -->
         <testsuite name="Core">
             <file>tests/HtAccessTest.php</file>
             <file>tests/HtPasswdTest.php</file>
@@ -19,40 +21,26 @@
             <file>tests/DirectiveTest.php</file>
             <file>tests/IfModuleTest.php</file>
         </testsuite>
-        
-        <!-- Container tests -->
         <testsuite name="Container">
             <directory>tests/Container</directory>
         </testsuite>
-        
-        <!-- Directive tests -->
         <testsuite name="Directive">
             <directory>tests/Directive</directory>
         </testsuite>
-        
-        <!-- Module tests -->
         <testsuite name="Module">
             <directory>tests/Module</directory>
         </testsuite>
-        
-        <!-- Example tests -->
         <testsuite name="Examples">
             <directory>tests/Examples</directory>
         </testsuite>
-        
-        <!-- To run all suites: phpunit (no testsuite flag) -->
     </testsuites>
-    
+
     <source>
         <include>
             <directory>src</directory>
         </include>
     </source>
-    
-    <logging>
-        <testdoxText outputFile="testdox.txt"/>
-    </logging>
-    
+
     <php>
         <ini name="memory_limit" value="256M"/>
         <ini name="error_reporting" value="E_ALL"/>

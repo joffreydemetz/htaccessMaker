@@ -43,6 +43,7 @@
         "test:container": "phpunit --testsuite Container --colors=always --testdox",
         "test:module": "phpunit --testsuite Module --colors=always --testdox",
         "test:examples": "phpunit --testsuite Examples --colors=always --testdox",
-        "test:core": "phpunit --testsuite Core --colors=always --testdox"
+        "test:core": "phpunit --testsuite Core --colors=always --testdox",
+        "test-coverage": ["@putenv XDEBUG_MODE=coverage", "phpunit --coverage-html coverage"]
     }
 }

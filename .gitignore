@@ -1,4 +1,4 @@
-.phpunit.cache
+/.phpunit.cache/
 testdox.txt
 composer.lock
 examples/config/admin.yml
@@ -11,4 +11,4 @@ examples/client.php
 examples/media.class.php
 examples/exports/*
 /vendor/
-/.phpunit.cache/
+/coverage/
