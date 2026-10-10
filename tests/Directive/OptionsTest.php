@@ -4,27 +4,29 @@ declare(strict_types=1);
 
 namespace Tests\Directive;
 
-use Tests\DirectiveTest;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\TestCase;
 use JDZ\HtaccessMaker\Directive\Options;
 
-class OptionsTest extends DirectiveTest
+class OptionsTest extends TestCase
 {
-    public function testOptionsWithEnableIndexes(): void
+    /**
+     * @param string|list<string> $options
+     */
+    #[DataProvider('optionsCases')]
+    public function testToString(string|array $options, string $expected): void
     {
-        $directive = new Options('+Indexes');
-        $this->assertStringContainsString('Options +Indexes', $directive->toString());
+        $directive = new Options($options);
+
+        $this->assertSame($expected, $directive->toString());
     }
 
-    public function testOptionsWithDisableIndexes(): void
+    public static function optionsCases(): array
     {
-        $directive = new Options('-Indexes');
-        $this->assertStringContainsString('Options -Indexes', $directive->toString());
-    }
-
-    public function testOptionsWithMultipleOptions(): void
-    {
-        $directive = new Options('+Indexes +FollowSymLinks -MultiViews');
-
-        $this->assertStringContainsString('Options +Indexes +FollowSymLinks -MultiViews', $directive->toString());
+        return [
+            'one option' => ['+Indexes', 'Options +Indexes'],
+            'space separated string' => ['+Indexes +FollowSymLinks -MultiViews', 'Options +Indexes +FollowSymLinks -MultiViews'],
+            'array, duplicates dropped' => [['-Indexes', '+FollowSymLinks', '-Indexes'], 'Options -Indexes +FollowSymLinks'],
+        ];
     }
 }

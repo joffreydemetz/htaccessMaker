@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Container;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\BaseContainerTest;
 use Tests\EmptyContainerTests;
 use JDZ\HtaccessMaker\Container\FilesMatch;
@@ -20,25 +21,37 @@ class FilesMatchTest extends BaseContainerTest
         $container->process(['pattern' => '\.(css|js)$']);
         $container->addDirective('Header set Cache-Control "public, max-age=31536000"');
 
-        $output = $container->toString();
-
-        $this->assertStringContainsString('<FilesMatch "\.(css|js)$">', $output);
-        $this->assertStringContainsString('Header set Cache-Control "public, max-age=31536000"', $output);
-        $this->assertStringContainsString('</FilesMatch>', $output);
+        $this->assertSame(
+            "<FilesMatch \"\\.(css|js)$\">\n  Header set Cache-Control \"public, max-age=31536000\"\n</FilesMatch>\n\n",
+            $container->toString()
+        );
     }
 
-    public function testFilesMatchWithMultipleDirectives(): void
+    public function testPatternKeptWhenProcessedAgainWithoutOne(): void
     {
         $container = new FilesMatch();
-        $container->process(['pattern' => '\.(woff|woff2|ttf|eot)$']);
-        $container->addDirective('Header set Access-Control-Allow-Origin "*"');
-        $container->addDirective('Header set Cache-Control "public, max-age=604800"');
+        $container->process(['pattern' => '\.ico$']);
+        $container->process(['enabled' => true]);
+        $container->addDirective('Header set Cache-Control "public"');
 
-        $output = $container->toString(true);
+        $this->assertSame("<FilesMatch \"\\.ico$\">\n  Header set Cache-Control \"public\"\n</FilesMatch>\n\n", $container->toString());
+    }
 
-        $this->assertStringContainsString('<FilesMatch "\.(woff|woff2|ttf|eot)$">', $output);
-        $this->assertStringContainsString('Header set Access-Control-Allow-Origin "*"', $output);
-        $this->assertStringContainsString('Header set Cache-Control "public, max-age=604800"', $output);
-        $this->assertStringContainsString('</FilesMatch>', $output);
+    #[DataProvider('withoutPattern')]
+    public function testRendersNothingWithoutAPattern(array $config): void
+    {
+        $container = new FilesMatch();
+        $container->process($config);
+        $container->addDirective('Header set Cache-Control "public"');
+
+        $this->assertSame('', $container->toString());
+    }
+
+    public static function withoutPattern(): array
+    {
+        return [
+            'enabled, no pattern' => [['enabled' => true]],
+            'empty pattern' => [['pattern' => '']],
+        ];
     }
 }

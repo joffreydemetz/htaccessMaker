@@ -14,36 +14,31 @@ class LimitExceptTest extends BaseContainerTest
 
     protected string $containerClass = LimitExcept::class;
 
-    public function testLimitExceptWithMethods(): void
+    public function testMethodsListedOnce(): void
     {
         $container = new LimitExcept();
-        $container->process(['authMethods' => ['GET', 'POST']]);
-        $container->addDirective('Order deny,allow');
-        $container->addDirective('Deny from all');
+        $container->process(['authMethods' => ['GET', 'POST', 'GET']]);
+        $container->addDirective('Require valid-user');
 
-        $output = $container->toString();
-
-        $this->assertStringContainsString('<LimitExcept GET POST>', $output);
-        $this->assertStringContainsString('Order deny,allow', $output);
-        $this->assertStringContainsString('Deny from all', $output);
-        $this->assertStringContainsString('</LimitExcept>', $output);
+        $this->assertSame("<LimitExcept GET POST>\n  Require valid-user\n</LimitExcept>\n\n", $container->toString());
     }
 
-    public function testLimitExceptWithIPRestrictions(): void
+    public function testMethodsKeptWhenProcessedAgainWithoutThem(): void
     {
         $container = new LimitExcept();
-        $container->process(['authMethods' => ['GET', 'POST', 'HEAD', 'OPTIONS']]);
-        $container->addDirective('Order deny,allow');
-        $container->addDirective('Deny from all');
-        $container->addDirective('Allow from 127.0.0.1');
-        $container->addDirective('Allow from 192.168.1.0/24');
+        $container->process(['authMethods' => ['GET']]);
+        $container->process(['enabled' => true]);
+        $container->addDirective('Require valid-user');
 
-        $output = $container->toString();
+        $this->assertSame("<LimitExcept GET>\n  Require valid-user\n</LimitExcept>\n\n", $container->toString());
+    }
 
-        $this->assertStringContainsString('<LimitExcept GET POST HEAD OPTIONS>', $output);
-        $this->assertStringContainsString('Order deny,allow', $output);
-        $this->assertStringContainsString('Deny from all', $output);
-        $this->assertStringContainsString('Allow from 127.0.0.1', $output);
-        $this->assertStringContainsString('Allow from 192.168.1.0/24', $output);
+    public function testRendersNothingWithoutMethods(): void
+    {
+        $container = new LimitExcept();
+        $container->process(['enabled' => true]);
+        $container->addDirective('Require valid-user');
+
+        $this->assertSame('', $container->toString());
     }
 }

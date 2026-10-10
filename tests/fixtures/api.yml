@@ -1,0 +1,64 @@
+# Input of tests/Examples/BaseHtAccessTest.php -> api.htaccess
+# A password-protected staging API: comments hidden, modules printed bare.
+
+showComments: false
+ensureApacheCompatibility: false
+
+serverSignature: false
+directoryIndex: ~
+options: []
+authMethods: [GET, POST, PUT, DELETE]
+
+mimeTypes: []
+errorDocuments: []
+
+negociation: false
+
+antiXss: true
+xssProtection: ""
+frameOptions: "DENY"
+contentTypeOptions: "nosniff"
+refererPolicy: "no-referrer"
+strictTransportSecurity: ""
+
+browserRender: false
+securityPolicy: false
+
+webCaching: false
+webCompression: true
+wcMimeTypes: ["application/json"]
+wcBrowserCompatibility: false
+wcFileExclusions: []
+wcVaryHeader: true
+
+serverAuthorization: true
+protectedAuthName: "Staging API"
+htPasswordDir: /var/www/staging/.htpasswd
+htPasswordUser: staging
+htPasswordClear: changeme
+protectedDefaultPaths: false
+allowedPaths: ["^/api/health$"]
+allowedUserBots: ["UptimeRobot"]
+
+redirectMaintenance: false
+
+blockAction: "/index.php"
+blockFlags: ["F"]
+blockUrlAttacks: false
+blockSqlInjection: true
+blockShellInjection: false
+blockMaliciousRequests: false
+blacklistReferrers: []
+blacklistUserAgents: []
+blacklistHttpMethods: [TRACE, TRACK]
+
+forceSsl: true
+forceSslExcludePaths: []
+redirectWww: false
+
+rewriteBase: /api
+checkTrailingSlash: false
+versionedFiles: false
+domainApps:
+  - { domain: "api.example.com", file: "api.php" }
+rules: []

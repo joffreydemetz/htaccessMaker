@@ -2,33 +2,33 @@
 
 declare(strict_types=1);
 
-namespace Tests\Container;
+namespace Tests\Module;
 
-use Tests\BaseContainerTest;
-use Tests\DirectiveContainerTests;
-use Tests\ContainerDefaultsTests;
+use PHPUnit\Framework\TestCase;
 use JDZ\HtaccessMaker\Module\RedirectWwwRewrite;
 
-class RedirectWwwRewriteTest extends BaseContainerTest
+class RedirectWwwRewriteTest extends TestCase
 {
-    use DirectiveContainerTests;
-    use ContainerDefaultsTests;
-
-    protected string $containerClass = RedirectWwwRewrite::class;
-
     public function testRedirectWwwRewrite(): void
     {
-        $container = new RedirectWwwRewrite();
-        $container->process([
-            'enabled' => true,
-        ]);
+        $module = new RedirectWwwRewrite();
+        $module->process(['enabled' => true]);
 
-        $output = $container->toString();
+        $this->assertSame(implode("\n", [
+            'RewriteEngine On',
+            '# Redirect www to non-www',
+            'RewriteCond %{HTTP_HOST} ^www\.(.*)$',
+            'RewriteRule ^(.*)$ https://%1/$1 [R=301,L]',
+            '',
+            '',
+        ]), $module->toString());
+    }
 
-        $this->assertStringContainsString('RewriteEngine On', $output);
-        $this->assertStringContainsString('Redirect www to non-www', $output);
-        $this->assertStringContainsString('RewriteCond %{HTTP_HOST} ^www\.(.*)$', $output);
-        $this->assertStringContainsString('https://%1/$1', $output);
-        $this->assertStringContainsString('R=301', $output);
+    public function testEmptyConfigAddsNothing(): void
+    {
+        $module = new RedirectWwwRewrite();
+        $module->process();
+
+        $this->assertSame("RewriteEngine On\n\n", $module->toString());
     }
 }

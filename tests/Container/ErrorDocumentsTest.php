@@ -4,83 +4,53 @@ declare(strict_types=1);
 
 namespace Tests\Container;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\BaseContainerTest;
 use Tests\EmptyContainerTests;
-use Tests\DirectiveContainerTests;
-use Tests\ContainerDefaultsTests;
 use JDZ\HtaccessMaker\Container\ErrorDocuments;
 
 class ErrorDocumentsTest extends BaseContainerTest
 {
     use EmptyContainerTests;
-    use DirectiveContainerTests;
-    use ContainerDefaultsTests;
 
     protected string $containerClass = ErrorDocuments::class;
 
-    public function testErrorDocumentsWithBasicConfig(): void
+    #[DataProvider('processCases')]
+    public function testProcess(array $config, string $expected): void
     {
         $container = new ErrorDocuments();
-        $container->process([
-            'errorDocuments' => [
-                '404' => '/404.html',
-                '500' => '/500.html'
-            ]
-        ]);
+        $container->process($config);
 
-        $output = $container->toString(true);
-
-        $this->assertStringContainsString('ErrorDocument 404 /404.html', $output);
-        $this->assertStringContainsString('ErrorDocument 500 /500.html', $output);
+        $this->assertSame($expected, $container->toString());
     }
 
-    public function testErrorDocumentsWithCommonErrors(): void
+    public static function processCases(): array
     {
-        $container = new ErrorDocuments();
-        $container->addCommonErrorPages('');
-
-        $output = $container->toString();
-
-        $this->assertStringContainsString('ErrorDocument 400 /bad-request.html', $output);
-        $this->assertStringContainsString('ErrorDocument 401 /unauthorized.html', $output);
-        $this->assertStringContainsString('ErrorDocument 403 /forbidden.html', $output);
-        $this->assertStringContainsString('ErrorDocument 404 /not-found.html', $output);
-        $this->assertStringContainsString('ErrorDocument 500 /internal-error.html', $output);
-        $this->assertStringContainsString('ErrorDocument 502 /bad-gateway.html', $output);
-        $this->assertStringContainsString('ErrorDocument 503 /service-unavailable.html', $output);
-    }
-
-    public function testErrorDocumentsWithMessages(): void
-    {
-        $container = new ErrorDocuments();
-        $container->process([
-            'errorDocuments' => [
-                '404' => '"Page Not Found"',
-                '500' => '"Internal Server Error"'
-            ]
-        ]);
-
-        $output = $container->toString();
-
-        $this->assertStringContainsString('ErrorDocument 404 "Page Not Found"', $output);
-        $this->assertStringContainsString('ErrorDocument 500 "Internal Server Error"', $output);
-    }
-
-    public function testErrorDocumentsWithManualDirectives(): void
-    {
-        $container = new ErrorDocuments();
-        $container->addDirective('ErrorDocument 403 /forbidden.html');
-        $container->addDirective('ErrorDocument 404 /not-found.html');
-
-        $output = $container->toString(true);
-
-        $this->assertStringContainsString('ErrorDocument 403 /forbidden.html', $output);
-        $this->assertStringContainsString('ErrorDocument 404 /not-found.html', $output);
-    }
-
-    public function testErrorDocumentsEmpty(): void
-    {
-        $container = new ErrorDocuments();
-        $this->assertIsString($container->toString());
+        return [
+            'default 404 page' => [['enabled' => true], "ErrorDocument 404 /error-404.html\n\n"],
+            'code => url, a message kept as given' => [
+                ['errorDocuments' => ['404' => '/404.html', '500' => '"Internal Server Error"']],
+                "ErrorDocument 404 /404.html\nErrorDocument 500 \"Internal Server Error\"\n\n",
+            ],
+            'list of code + url' => [
+                ['errorDocuments' => [['code' => 403, 'url' => '/errors/forbidden.html'], ['code' => 404, 'url' => '/errors/not-found.html']]],
+                "ErrorDocument 403 /errors/forbidden.html\nErrorDocument 404 /errors/not-found.html\n\n",
+            ],
+            'common pages under a base URL, then the custom ones' => [
+                ['errorDocuments' => [], 'commonErrorPages' => '/errors/', 'customErrors' => [404 => '/custom-404.html']],
+                implode("\n", [
+                    'ErrorDocument 400 /errors/bad-request.html',
+                    'ErrorDocument 401 /errors/unauthorized.html',
+                    'ErrorDocument 403 /errors/forbidden.html',
+                    'ErrorDocument 404 /errors/not-found.html',
+                    'ErrorDocument 500 /errors/internal-error.html',
+                    'ErrorDocument 502 /errors/bad-gateway.html',
+                    'ErrorDocument 503 /errors/service-unavailable.html',
+                    'ErrorDocument 404 /custom-404.html',
+                    '',
+                    '',
+                ]),
+            ],
+        ];
     }
 }

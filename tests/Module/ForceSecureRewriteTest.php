@@ -2,65 +2,43 @@
 
 declare(strict_types=1);
 
-namespace Tests\Container;
+namespace Tests\Module;
 
-use Tests\BaseContainerTest;
-use Tests\DirectiveContainerTests;
-use Tests\ContainerDefaultsTests;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\TestCase;
 use JDZ\HtaccessMaker\Module\ForceSecureRewrite;
 
-class ForceSecureRewriteTest extends BaseContainerTest
+class ForceSecureRewriteTest extends TestCase
 {
-    use DirectiveContainerTests;
-    use ContainerDefaultsTests;
-
-    protected string $containerClass = ForceSecureRewrite::class;
-
-    public function testForceSecureRewriteBasic(): void
+    #[DataProvider('processCases')]
+    public function testProcess(array $config, string $expected): void
     {
-        $container = new ForceSecureRewrite();
-        $container->process(['enabled' => true]);
+        $module = new ForceSecureRewrite();
+        $module->process($config);
 
-        $output = $container->toString();
-
-        $this->assertStringContainsString('RewriteCond %{HTTPS} off', $output);
-        $this->assertStringContainsString('RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI}', $output);
-        $this->assertStringContainsString('[R=301,L]', $output);
+        $this->assertSame($expected, $module->toString());
     }
 
-    public function testForceSecureRewriteWithExcludePaths(): void
+    public static function processCases(): array
     {
-        $container = new ForceSecureRewrite();
-        $container->process(['excludePaths' => ['/api', '/webhook']]);
-
-        $output = $container->toString();
-
-        $this->assertStringContainsString('RewriteCond %{HTTPS} off', $output);
-        $this->assertStringContainsString('RewriteCond %{REQUEST_URI} !^/api$', $output);
-        $this->assertStringContainsString('RewriteCond %{REQUEST_URI} !^/webhook$', $output);
-        $this->assertStringContainsString('RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI}', $output);
-    }
-
-    public function testForceSecureRewriteWithSingleExcludePath(): void
-    {
-        $container = new ForceSecureRewrite();
-        $container->process(['excludePaths' => ['/insecure']]);
-
-        $this->assertStringContainsString('RewriteCond %{REQUEST_URI} !^/insecure$', $container->toString());
-    }
-
-    public function testForceSecureRewriteWithEmptyExcludePaths(): void
-    {
-        $container = new ForceSecureRewrite();
-        $container->process([
-            'excludePaths' => [],
-        ]);
-
-        $output = $container->toString();
-
-        $this->assertStringContainsString('RewriteCond %{HTTPS} off', $output);
-        $this->assertStringContainsString('RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI}', $output);
-        // Should not contain any exclusion conditions
-        $this->assertStringNotContainsString('!^/', $output);
+        return [
+            'every http request redirected' => [['enabled' => true], implode("\n", [
+                'RewriteEngine On',
+                'RewriteCond %{HTTPS} off',
+                'RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]',
+                '',
+                '',
+            ])],
+            'excluded paths' => [['excludePaths' => ['/api', '/webhook']], implode("\n", [
+                'RewriteEngine On',
+                'RewriteCond %{HTTPS} off',
+                'RewriteCond %{REQUEST_URI} !^/api$',
+                'RewriteCond %{REQUEST_URI} !^/webhook$',
+                'RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]',
+                '',
+                '',
+            ])],
+            'empty config adds nothing' => [[], "RewriteEngine On\n\n"],
+        ];
     }
 }

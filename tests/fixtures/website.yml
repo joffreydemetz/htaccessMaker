@@ -1,0 +1,86 @@
+# Input of tests/Examples/BaseHtAccessTest.php -> website.htaccess
+# A public website: comments shown, every module wrapped in its <IfModule>.
+
+showComments: true
+ensureApacheCompatibility: true
+
+serverSignature: false
+directoryIndex: index.php
+options: ["-Indexes", "+FollowSymLinks"]
+authMethods: [GET, POST]
+
+mimeTypes:
+  - { type: font/woff2, extensions: [".woff2"] }
+  - { type: application/manifest+json, extensions: [".webmanifest"] }
+errorDocuments:
+  - { code: 404, url: "/errors/not-found.html" }
+  - { code: 500, url: "/errors/internal-error.html" }
+
+negociation: true
+negMultiviews: false
+negIndexIgnorePattern: "*"
+negCustomOptions: []
+
+antiXss: true
+xssProtection: "1; mode=block"
+frameOptions: "SAMEORIGIN"
+contentTypeOptions: "nosniff"
+refererPolicy: "strict-origin-when-cross-origin"
+strictTransportSecurity: "max-age=31536000; includeSubDomains"
+
+browserRender: true
+uaCompatible: true
+uaCompatibleBrowsers: "IE=Edge"
+unsetOnStaticFiles: true
+staticFilesExtensions: [js, css, png, jpe?g, svg, woff2, ico]
+
+securityPolicy: true
+useXContentSecurityPolicy: false
+csp:
+  script: ["self", "https://stats.example.com"]
+  img: ["self", "data", "https://stats.example.com"]
+  frame-ancestors: ["none"]
+
+webCaching: true
+preventCookieMaxAge: 2592000
+preventCookieRemoveCookies: true
+preventCookieSetCacheControl: true
+preventCookieSetConnectionHeaders: false
+preventCookieDisableETags: true
+preventCookieSetVaryHeaders: true
+cacheRules:
+  - { mimeType: "text/css", expiry: "access plus 1 year" }
+  - { mimeType: "application/javascript", expiry: "access plus 1 year" }
+  - { mimeType: "image/webp", expiry: "access plus 6 months" }
+defaultCacheExpiry: "access plus 1 month"
+
+webCompression: true
+wcMimeTypes: ["text/html", "text/css", "application/javascript", "image/svg+xml"]
+wcBrowserCompatibility: false
+wcFileExclusions: ["/sitemap.xml"]
+wcVaryHeader: true
+
+serverAuthorization: false
+
+redirectMaintenance: false
+
+blockAction: "/index.php"
+blockFlags: ["R=403", "L"]
+blockUrlAttacks: true
+blockSqlInjection: true
+blockShellInjection: false
+blockMaliciousRequests: false
+blacklistReferrers: ["semalt\\.com"]
+blacklistUserAgents: []
+blacklistHttpMethods: [TRACE, TRACK]
+
+forceSsl: true
+forceSslExcludePaths: ["/.well-known/acme-challenge/.+"]
+redirectWww: true
+
+rewriteBase: /
+checkTrailingSlash: true
+versionedFiles: true
+domainApps: []
+rules:
+  - { from: "^old-page/?$", to: "/new-page/" }

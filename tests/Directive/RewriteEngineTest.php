@@ -4,17 +4,29 @@ declare(strict_types=1);
 
 namespace Tests\Directive;
 
-use Tests\DirectiveTest;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\TestCase;
 use JDZ\HtaccessMaker\Directive\RewriteEngine;
 
-class RewriteEngineTest extends DirectiveTest
+class RewriteEngineTest extends TestCase
 {
-    public function testRewriteEngineOn(): void
+    public function testOnByDefault(): void
     {
-        $directive = new RewriteEngine('On');
+        $this->assertSame('RewriteEngine On', (new RewriteEngine())->toString());
+    }
 
-        $output = $directive->toString(true);
+    #[DataProvider('statuses')]
+    public function testOnlyOffSwitchesItOff(string $status, string $expected): void
+    {
+        $this->assertSame($expected, (new RewriteEngine($status))->toString());
+    }
 
-        $this->assertStringContainsString('RewriteEngine On', $output);
+    public static function statuses(): array
+    {
+        return [
+            'On' => ['On', 'RewriteEngine On'],
+            'off, any case' => ['oFF', 'RewriteEngine Off'],
+            'anything else is On' => ['disabled', 'RewriteEngine On'],
+        ];
     }
 }

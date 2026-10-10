@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use JDZ\HtaccessMaker\HtPasswd;
 
@@ -11,21 +12,7 @@ class HtPasswdTest extends TestCase
 {
     public function testToStringWithEmptyUsers(): void
     {
-        $htpasswd = new HtPasswd();
-        $output = $htpasswd->toString();
-        $this->assertEquals('', $output);
-    }
-
-    public function testAddUser(): void
-    {
-        $htpasswd = new HtPasswd();
-        $result = $htpasswd->addUser('testuser', 'testpass');
-
-        $this->assertSame($htpasswd, $result); // Test fluent interface
-
-        $output = $htpasswd->toString();
-        $this->assertStringContainsString('testuser:', $output);
-        $this->assertStringNotContainsString('testpass', $output);
+        $this->assertSame('', (new HtPasswd())->toString());
     }
 
     public function testEncryptedPasswordGeneration(): void
@@ -33,11 +20,7 @@ class HtPasswdTest extends TestCase
         $htpasswd = new HtPasswd();
         $htpasswd->addUser('user1', 'password123');
 
-        $output = $htpasswd->toString();
-
-        $this->assertStringContainsString('user1:', $output);
-        $this->assertStringNotContainsString('password123', $output);
-        $this->assertMatchesRegularExpression('/user1:\$apr1\$[a-zA-Z0-9\.\/]{8}\$[a-zA-Z0-9\.\/]{22}/', $output);
+        $this->assertMatchesRegularExpression('/^user1:\$apr1\$[.\/0-9A-Za-z]{8}\$[.\/0-9A-Za-z]{22}\n$/D', $htpasswd->toString());
     }
 
     public function testMultipleUsers(): void
@@ -46,73 +29,86 @@ class HtPasswdTest extends TestCase
         $htpasswd->addUser('admin', 'admin123');
         $htpasswd->addUser('user', 'user456');
 
-        $output = $htpasswd->toString();
-
-        // Should contain both users
-        $this->assertStringContainsString('admin:', $output);
-        $this->assertStringContainsString('user:', $output);
-
-        // Should never contain the clear-text passwords
-        $this->assertStringNotContainsString('admin123', $output);
-        $this->assertStringNotContainsString('user456', $output);
-
-        // Should have proper line structure
-        $lines = explode("\n", trim($output));
-        $this->assertCount(2, $lines); // one name:hash line per user
+        $this->assertMatchesRegularExpression(
+            '/^admin:\$apr1\$[.\/0-9A-Za-z]{8}\$[.\/0-9A-Za-z]{22}\nuser:\$apr1\$[.\/0-9A-Za-z]{8}\$[.\/0-9A-Za-z]{22}\n$/D',
+            $htpasswd->toString()
+        );
     }
 
-    public function testPasswordEncryptionConsistency(): void
+    public function testSamePasswordGetsAFreshSalt(): void
     {
-        $htpasswd1 = new HtPasswd();
-        $htpasswd1->addUser('test', 'same_password');
+        $first = (new HtPasswd())->addUser('test', 'same_password')->toString();
+        $second = (new HtPasswd())->addUser('test', 'same_password')->toString();
 
-        $htpasswd2 = new HtPasswd();
-        $htpasswd2->addUser('test', 'same_password');
-
-        $output1 = $htpasswd1->toString();
-        $output2 = $htpasswd2->toString();
-
-        // Different salts should produce different encrypted passwords
-        $this->assertNotEquals($output1, $output2);
-
-        // But both should be valid APR1-MD5 format
-        $this->assertMatchesRegularExpression('/test:\$apr1\$[a-zA-Z0-9\.\/]{8}\$[a-zA-Z0-9\.\/]{22}/', $output1);
-        $this->assertMatchesRegularExpression('/test:\$apr1\$[a-zA-Z0-9\.\/]{8}\$[a-zA-Z0-9\.\/]{22}/', $output2);
+        $this->assertNotSame($first, $second);
     }
 
-    public function testSpecialCharactersInPassword(): void
+    /**
+     * The salt is random, so the hash is checked against an independent APR1-MD5
+     * implementation (self::apr1()), itself pinned to `openssl passwd -apr1 -salt` vectors.
+     */
+    #[DataProvider('passwords')]
+    public function testHashIsApr1Md5(string $password, string $vectorSalt, string $vectorHash): void
     {
-        $htpasswd = new HtPasswd();
-        $specialPassword = 'p@$$w0rd!@#$%^&*()';
-        $htpasswd->addUser('special', $specialPassword);
+        $this->assertSame($vectorHash, self::apr1($password, $vectorSalt), 'reference implementation against openssl');
 
-        $output = $htpasswd->toString();
+        $line = (new HtPasswd())->addUser('user', $password)->toString();
 
-        $this->assertStringContainsString('special:', $output);
-        $this->assertStringNotContainsString($specialPassword, $output);
-        $this->assertMatchesRegularExpression('/special:\$apr1\$[a-zA-Z0-9\.\/]{8}\$[a-zA-Z0-9\.\/]{22}/', $output);
+        $this->assertSame(1, preg_match('/^user:(\$apr1\$([.\/0-9A-Za-z]{8})\$[.\/0-9A-Za-z]{22})\n$/D', $line, $match), $line);
+        $this->assertSame(self::apr1($password, $match[2]), $match[1]);
     }
 
-    public function testEmptyPassword(): void
+    public static function passwords(): array
     {
-        $htpasswd = new HtPasswd();
-        $htpasswd->addUser('emptypass', '');
-
-        $output = $htpasswd->toString();
-
-        $this->assertStringContainsString('emptypass:', $output);
-        $this->assertStringNotContainsString('#', $output);
-        $this->assertMatchesRegularExpression('/emptypass:\$apr1\$[a-zA-Z0-9\.\/]{8}\$[a-zA-Z0-9\.\/]{22}/', $output);
+        return [
+            'short' => ['password', 'abcdefgh', '$apr1$abcdefgh$FBwExRW4dCc8aL.OvjpIE1'],
+            'empty' => ['', '0123abcd', '$apr1$0123abcd$5CfKTUzx/RwoJidpYir71/'],
+            'special characters' => ['p@$$w0rd!@#$%^&*()', 'zz9yy8xx', '$apr1$zz9yy8xx$GDttPOr9Z7ywU6tYRHXiY.'],
+            'longer than one MD5 digest' => ['a-much-longer-password-than-sixteen-bytes', 'q1w2e3r4', '$apr1$q1w2e3r4$qoniD.8r5LPIUFs7UB4ll/'],
+        ];
     }
 
-    public function testUserWithSpecialCharactersInName(): void
+    /**
+     * APR1-MD5 as in apr_md5.c (md5crypt with the "$apr1$" magic and its to64 encoding).
+     */
+    private static function apr1(string $password, string $salt): string
     {
-        $htpasswd = new HtPasswd();
-        $htpasswd->addUser('user.name@domain.com', 'password');
+        $context = $password . '$apr1$' . $salt;
+        $final = md5($password . $salt . $password, true);
+        for ($left = strlen($password); $left > 0; $left -= 16) {
+            $context .= substr($final, 0, min(16, $left));
+        }
+        for ($i = strlen($password); $i > 0; $i >>= 1) {
+            $context .= ($i & 1) ? "\0" : $password[0];
+        }
+        $final = md5($context, true);
 
-        $output = $htpasswd->toString();
+        for ($i = 0; $i < 1000; $i++) {
+            $round = ($i & 1) ? $password : $final;
+            if ($i % 3) {
+                $round .= $salt;
+            }
+            if ($i % 7) {
+                $round .= $password;
+            }
+            $round .= ($i & 1) ? $final : $password;
+            $final = md5($round, true);
+        }
 
-        $this->assertStringContainsString('user.name@domain.com:', $output);
-        $this->assertStringNotContainsString('#', $output);
+        $itoa64 = './0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+        $bytes = array_values(unpack('C*', $final));
+        $groups = [[0, 6, 12, 4], [1, 7, 13, 4], [2, 8, 14, 4], [3, 9, 15, 4], [4, 10, 5, 4]];
+        $hash = '';
+        foreach ($groups as [$a, $b, $c, $chars]) {
+            $value = ($bytes[$a] << 16) | ($bytes[$b] << 8) | $bytes[$c];
+            for ($n = 0; $n < $chars; $n++, $value >>= 6) {
+                $hash .= $itoa64[$value & 0x3f];
+            }
+        }
+        for ($n = 0, $value = $bytes[11]; $n < 2; $n++, $value >>= 6) {
+            $hash .= $itoa64[$value & 0x3f];
+        }
+
+        return '$apr1$' . $salt . '$' . $hash;
     }
 }

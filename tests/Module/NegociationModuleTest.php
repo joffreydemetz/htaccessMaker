@@ -2,85 +2,41 @@
 
 declare(strict_types=1);
 
-namespace Tests\Container;
+namespace Tests\Module;
 
-use Tests\BaseContainerTest;
-use Tests\DirectiveContainerTests;
-use Tests\ContainerDefaultsTests;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\TestCase;
 use JDZ\HtaccessMaker\Module\NegociationModule;
 
-class NegociationModuleTest extends BaseContainerTest
+class NegociationModuleTest extends TestCase
 {
-    use DirectiveContainerTests;
-    use ContainerDefaultsTests;
-
-    protected string $containerClass = NegociationModule::class;
-
-    public function testNegociationModuleWithMultiViewsEnabled(): void
+    #[DataProvider('processCases')]
+    public function testProcess(array $config, string $expected): void
     {
-        $container = new NegociationModule();
-        $container->enableMultiViews();
-        $container->ensureApacheCompatibility();
+        $module = new NegociationModule();
+        $module->process($config);
 
-        $output = $container->toString();
-
-        $this->assertStringContainsString('<IfModule mod_negotiation.c>', $output);
-        $this->assertStringContainsString('Options +MultiViews', $output);
-        $this->assertStringContainsString('</IfModule>', $output);
+        $this->assertSame($expected, $module->toString());
     }
 
-    public function testNegociationModuleWithMultiViewsDisabled(): void
+    public static function processCases(): array
     {
-        $container = new NegociationModule();
-        $container->disableMultiViews();
-        $container->ensureApacheCompatibility();
-
-        $output = $container->toString();
-
-        $this->assertStringContainsString('<IfModule mod_negotiation.c>', $output);
-        $this->assertStringContainsString('Options -MultiViews', $output);
-        $this->assertStringContainsString('</IfModule>', $output);
+        return [
+            'defaults, even without a config: MultiViews off, IndexIgnore *' => [[], "Options -MultiViews\nIndexIgnore *\n\n"],
+            'MultiViews on, custom options, no IndexIgnore' => [
+                ['multiViews' => true, 'customOptions' => ['-Indexes', '+FollowSymLinks'], 'indexIgnore' => ''],
+                "Options +MultiViews\nOptions -Indexes +FollowSymLinks\n\n",
+            ],
+            'custom IndexIgnore pattern' => [['indexIgnore' => '*.map'], "Options -MultiViews\nIndexIgnore *.map\n\n"],
+        ];
     }
 
-    public function testNegociationModuleWithIndexIgnore(): void
+    public function testWrappedWithApacheCompatibility(): void
     {
-        $container = new NegociationModule();
-        $container->addIndexIgnore('*.var');
-        $container->ensureApacheCompatibility();
+        $module = new NegociationModule();
+        $module->process();
+        $module->ensureApacheCompatibility();
 
-        $output = $container->toString();
-
-        $this->assertStringContainsString('<IfModule mod_negotiation.c>', $output);
-        $this->assertStringContainsString('IndexIgnore *.var', $output);
-        $this->assertStringContainsString('</IfModule>', $output);
-    }
-
-    public function testNegociationModuleWithDefaultConfiguration(): void
-    {
-        $container = new NegociationModule();
-        $container->process();
-        $container->ensureApacheCompatibility();
-
-        $output = $container->toString();
-
-        $this->assertStringContainsString('<IfModule mod_negotiation.c>', $output);
-        $this->assertStringContainsString('Options -MultiViews', $output);
-        $this->assertStringContainsString('IndexIgnore *', $output);
-        $this->assertStringContainsString('</IfModule>', $output);
-    }
-
-    public function testNegociationModuleWithMultipleOptions(): void
-    {
-        $container = new NegociationModule();
-        $container->enableMultiViews();
-        $container->addIndexIgnore('*.map');
-        $container->ensureApacheCompatibility();
-
-        $output = $container->toString();
-
-        $this->assertStringContainsString('<IfModule mod_negotiation.c>', $output);
-        $this->assertStringContainsString('Options +MultiViews', $output);
-        $this->assertStringContainsString('IndexIgnore *.map', $output);
-        $this->assertStringContainsString('</IfModule>', $output);
+        $this->assertSame("<IfModule mod_negotiation.c>\n  Options -MultiViews\n  IndexIgnore *\n</IfModule>\n\n", $module->toString());
     }
 }

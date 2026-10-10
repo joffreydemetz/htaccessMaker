@@ -2,217 +2,99 @@
 
 declare(strict_types=1);
 
-namespace Tests\Container;
+namespace Tests\Module;
 
-use Tests\BaseContainerTest;
-use Tests\DirectiveContainerTests;
-use Tests\ContainerDefaultsTests;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\TestCase;
 use JDZ\HtaccessMaker\Module\RewriteModule;
 
-class RewriteModuleTest extends BaseContainerTest
+class RewriteModuleTest extends TestCase
 {
-    use DirectiveContainerTests;
-    use ContainerDefaultsTests;
-
-    protected string $containerClass = RewriteModule::class;
-
-    public function testRewriteModuleCreation(): void
+    public function testStartsWithRewriteEngineOn(): void
     {
-        $container = new RewriteModule();
-        $this->assertInstanceOf(RewriteModule::class, $container);
+        $this->assertSame("RewriteEngine On\n\n", (new RewriteModule())->toString());
     }
 
-    public function testRewriteModuleWithBasicRewrite(): void
+    public function testWrappedWithApacheCompatibility(): void
     {
-        $container = new RewriteModule();
-        $container->addDirective('RewriteRule ^old-page$ /new-page [R=301,L]');
-        $container->ensureApacheCompatibility();
+        $module = new RewriteModule();
+        $module->ensureApacheCompatibility();
 
-        $output = $container->toString(true);
-
-        $this->assertStringContainsString('<IfModule mod_rewrite.c>', $output);
-        $this->assertStringContainsString('RewriteEngine On', $output);
-        $this->assertStringContainsString('RewriteRule ^old-page$ /new-page [R=301,L]', $output);
-        $this->assertStringContainsString('</IfModule>', $output);
+        $this->assertSame("<IfModule mod_rewrite.c>\n  RewriteEngine On\n</IfModule>\n\n", $module->toString());
     }
 
-    public function testRewriteModuleWithConditions(): void
+    public function testAddMethodsRenderInCallOrder(): void
     {
-        $container = new RewriteModule();
-        $container->addDirective('RewriteEngine On');
-        $container->addDirective('RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]');
-        $container->addDirective('RewriteRule ^(.*)$ http://%1/$1 [R=301,L]');
+        $module = new RewriteModule();
+        $module->addRewriteBase('/blog');
+        $module->addRewriteCond('%{HTTP_HOST}', '^www\.(.+)$', ['NC']);
+        $module->addRewriteRule('^(.*)$', 'https://%1/$1', ['R=301', 'L']);
+        $module->addRewriteCond('%{REQUEST_FILENAME}', '!-f');
+        $module->addRewriteRule('^(.*)$', 'index.php', ['QSA', 'L']);
 
-        $output = $container->toString(true);
-
-        $this->assertStringContainsString('RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]', $output);
-        $this->assertStringContainsString('RewriteRule ^(.*)$ http://%1/$1 [R=301,L]', $output);
+        $this->assertSame(implode("\n", [
+            'RewriteEngine On',
+            'RewriteBase /blog/',
+            'RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]',
+            'RewriteRule ^(.*)$ https://%1/$1 [R=301,L]',
+            'RewriteCond %{REQUEST_FILENAME} !-f',
+            'RewriteRule ^(.*)$ index.php [QSA,L]',
+            '',
+            '',
+        ]), $module->toString());
     }
 
-    public function testRewriteModuleWithHttpsRedirect(): void
+    public function testAddRewriteCondAndRuleReturnTheAddedDirective(): void
     {
-        $container = new RewriteModule();
-        $container->addDirective('RewriteEngine On');
-        $container->addDirective('RewriteCond %{HTTPS} off');
-        $container->addDirective('RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]');
+        $module = new RewriteModule();
+        $module->addRewriteCond('%{HTTPS}', 'off')->setForceComment();
+        $module->addRewriteRule('^', 'https://%{HTTP_HOST}%{REQUEST_URI}', ['R=301', 'L'])->setForceComment();
 
-        $output = $container->toString(true);
-
-        $this->assertStringContainsString('RewriteCond %{HTTPS} off', $output);
-        $this->assertStringContainsString('RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]', $output);
+        $this->assertSame(implode("\n", [
+            'RewriteEngine On',
+            '# RewriteCond %{HTTPS} off',
+            '# RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]',
+            '',
+            '',
+        ]), $module->toString());
     }
 
-    public function testRewriteModuleWithPrettyUrls(): void
+    /**
+     * Only the commented-out ON section and the OFF condition are pinned: the OFF rule
+     * (`RewriteRule ^ https://%{HTTP_HOST} [L]`, no R flag) is reported, not pinned.
+     */
+    #[DataProvider('maintenanceCases')]
+    public function testAddMaintenanceModeCommentsOutTheOnSection(bool $showComments, string $expectedStart): void
     {
-        $container = new RewriteModule();
-        $container->addDirective('RewriteEngine On');
-        $container->addDirective('RewriteBase /');
-        $container->addDirective('RewriteCond %{REQUEST_FILENAME} !-f');
-        $container->addDirective('RewriteCond %{REQUEST_FILENAME} !-d');
-        $container->addDirective('RewriteRule ^(.*)$ index.php?route=$1 [L,QSA]');
+        $module = new RewriteModule();
+        $module->addMaintenanceMode(['10.0.0.1', '192.168.1.10'], '/down.html');
 
-        $output = $container->toString(true);
-
-        $this->assertStringContainsString('RewriteBase /', $output);
-        $this->assertStringContainsString('RewriteCond %{REQUEST_FILENAME} !-f', $output);
-        $this->assertStringContainsString('RewriteCond %{REQUEST_FILENAME} !-d', $output);
-        $this->assertStringContainsString('RewriteRule ^(.*)$ index.php?route=$1 [L,QSA]', $output);
+        $this->assertStringStartsWith($expectedStart, $module->toString($showComments));
     }
 
-    public function testRewriteModuleWithFileExtensionRemoval(): void
+    public static function maintenanceCases(): array
     {
-        $container = new RewriteModule();
-        $container->addDirective('RewriteEngine On');
-        $container->addDirective('RewriteCond %{REQUEST_FILENAME} !-d');
-        $container->addDirective('RewriteCond %{REQUEST_FILENAME} !-f');
-        $container->addDirective('RewriteRule ^([^\.]+)$ $1.php [NC,L]');
-
-        $output = $container->toString(true);
-
-        $this->assertStringContainsString('RewriteRule ^([^\.]+)$ $1.php [NC,L]', $output);
-    }
-
-    public function testRewriteModuleWithTrailingSlash(): void
-    {
-        $container = new RewriteModule();
-        $container->addDirective('RewriteEngine On');
-        $container->addDirective('RewriteCond %{REQUEST_FILENAME} !-f');
-        $container->addDirective('RewriteRule ^([^/]+)/$ $1 [R=301,L]');
-
-        $output = $container->toString(true);
-
-        $this->assertStringContainsString('RewriteRule ^([^/]+)/$ $1 [R=301,L]', $output);
-    }
-
-    public function testRewriteModuleWithMultipleConditions(): void
-    {
-        $container = new RewriteModule();
-        $container->addDirective('RewriteEngine On');
-        $container->addDirective('RewriteCond %{REQUEST_METHOD} ^POST$ [NC]');
-        $container->addDirective('RewriteCond %{HTTP_REFERER} !^https://example\.com [NC]');
-        $container->addDirective('RewriteRule ^(.*)$ - [F]');
-
-        $output = $container->toString(true);
-
-        $this->assertStringContainsString('RewriteCond %{REQUEST_METHOD} ^POST$ [NC]', $output);
-        $this->assertStringContainsString('RewriteCond %{HTTP_REFERER} !^https://example\.com [NC]', $output);
-        $this->assertStringContainsString('RewriteRule ^(.*)$ - [F]', $output);
-    }
-
-    public function testRewriteModuleWithComments(): void
-    {
-        $container = new RewriteModule();
-        $container->addDirective('# Enable URL rewriting');
-        $container->addDirective('RewriteEngine On');
-        $container->addDirective('# Remove trailing slash');
-        $container->addDirective('RewriteRule ^(.+)/$ /$1 [R=301,L]');
-
-        $output = $container->toString(true);
-
-        $this->assertStringContainsString('# Enable URL rewriting', $output);
-        $this->assertStringContainsString('# Remove trailing slash', $output);
-    }
-
-    public function testRewriteModuleWithoutComments(): void
-    {
-        $container = new RewriteModule();
-        $container->addDirective('# This is a comment');
-        $container->addDirective('RewriteEngine On');
-        $container->addDirective('RewriteRule ^test$ /test.php [L]');
-
-        $output = $container->toString(false);
-
-        $this->assertStringNotContainsString('# This is a comment', $output);
-        $this->assertStringContainsString('RewriteEngine On', $output);
-        $this->assertStringContainsString('RewriteRule ^test$ /test.php [L]', $output);
-    }
-
-    public function testRewriteModuleEmpty(): void
-    {
-        $container = new RewriteModule();
-        $container->ensureApacheCompatibility();
-
-        $output = $container->toString(true);
-
-        $this->assertStringContainsString('<IfModule mod_rewrite.c>', $output);
-        $this->assertStringContainsString('RewriteEngine On', $output);
-        $this->assertStringContainsString('</IfModule>', $output);
-    }
-
-    public function testRewriteModuleFluentInterface(): void
-    {
-        $container = new RewriteModule();
-        $result = $container->addDirective('RewriteEngine On');
-
-        $this->assertSame($container, $result);
-
-        $output = $container->toString(true);
-        $this->assertStringContainsString('RewriteEngine On', $output);
-    }
-
-    public function testRewriteModuleWithQueryStringAppend(): void
-    {
-        $container = new RewriteModule();
-        $container->addDirective('RewriteEngine On');
-        $container->addDirective('RewriteRule ^api/(.*)$ /api.php?endpoint=$1 [L,QSA]');
-
-        $output = $container->toString(true);
-
-        $this->assertStringContainsString('RewriteRule ^api/(.*)$ /api.php?endpoint=$1 [L,QSA]', $output);
-    }
-
-    public function testRewriteModuleWithEnvironmentVariables(): void
-    {
-        $container = new RewriteModule();
-        $container->addDirective('RewriteEngine On');
-        $container->addDirective('RewriteCond %{HTTP_USER_AGENT} bot [NC]');
-        $container->addDirective('RewriteRule .* - [E=is_bot:1]');
-
-        $output = $container->toString(true);
-
-        $this->assertStringContainsString('RewriteCond %{HTTP_USER_AGENT} bot [NC]', $output);
-        $this->assertStringContainsString('RewriteRule .* - [E=is_bot:1]', $output);
-    }
-
-    public function testRewriteModuleWithGone(): void
-    {
-        $container = new RewriteModule();
-        $container->addDirective('RewriteEngine On');
-        $container->addDirective('RewriteRule ^old-section/.*$ - [G]');
-
-        $output = $container->toString(true);
-
-        $this->assertStringContainsString('RewriteRule ^old-section/.*$ - [G]', $output);
-    }
-
-    public function testRewriteModuleWithForbidden(): void
-    {
-        $container = new RewriteModule();
-        $container->addDirective('RewriteEngine On');
-        $container->addDirective('RewriteRule ^admin/.*$ - [F]');
-
-        $output = $container->toString(true);
-
-        $this->assertStringContainsString('RewriteRule ^admin/.*$ - [F]', $output);
+        return [
+            'comments shown' => [true, implode("\n", [
+                'RewriteEngine On',
+                '# Maintenance mode',
+                '# RewriteCond %{REMOTE_ADDR} !^10\.0\.0\.1$',
+                '# RewriteCond %{REMOTE_ADDR} !^192\.168\.1\.10$',
+                '# RewriteCond %{REQUEST_URI} !^/down.html$',
+                '# RewriteRule $ /down.html [L]',
+                '# or not to maintenance',
+                'RewriteCond %{REQUEST_URI} ^/down.html$',
+                '',
+            ])],
+            'comments hidden: the ON section stays, commented out' => [false, implode("\n", [
+                'RewriteEngine On',
+                '# RewriteCond %{REMOTE_ADDR} !^10\.0\.0\.1$',
+                '# RewriteCond %{REMOTE_ADDR} !^192\.168\.1\.10$',
+                '# RewriteCond %{REQUEST_URI} !^/down.html$',
+                '# RewriteRule $ /down.html [L]',
+                'RewriteCond %{REQUEST_URI} ^/down.html$',
+                '',
+            ])],
+        ];
     }
 }

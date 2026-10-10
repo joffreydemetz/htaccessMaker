@@ -2,128 +2,52 @@
 
 declare(strict_types=1);
 
-namespace Tests\Container;
+namespace Tests\Module;
 
-use Tests\BaseContainerTest;
-use Tests\DirectiveContainerTests;
-use Tests\ContainerDefaultsTests;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\TestCase;
 use JDZ\HtaccessMaker\Module\MaintenanceRewrite;
 
-class MaintenanceRewriteTest extends BaseContainerTest
+class MaintenanceRewriteTest extends TestCase
 {
-    use DirectiveContainerTests;
-    use ContainerDefaultsTests;
-
-    protected string $containerClass = MaintenanceRewrite::class;
-
-    public function testMaintenanceRewriteWithDefaults(): void
+    /**
+     * Compared line by line without the blank lines: the EmptyLine meant to separate
+     * the ON and OFF sections is dropped by Container::toString() (reported, not pinned).
+     *
+     * @param list<string> $expectedLines
+     */
+    #[DataProvider('processCases')]
+    public function testProcess(array $config, array $expectedLines): void
     {
-        $container = new MaintenanceRewrite();
-        $container->process(['enabled' => true]);
-        $output = $container->toString(true);
+        $module = new MaintenanceRewrite();
+        $module->process($config);
 
-        $this->assertStringContainsString('RewriteEngine On', $output);
-        $this->assertStringContainsString('/maintenance.html', $output);
+        $lines = array_values(array_filter(explode("\n", $module->toString()), static fn(string $line): bool => '' !== $line));
+
+        $this->assertSame($expectedLines, $lines);
     }
 
-    public function testMaintenanceRewriteDefaultOff(): void
+    public static function processCases(): array
     {
-        $container = new MaintenanceRewrite();
-        $container->process(['enabled' => true, 'defaultState' => false]);
-        $output = $container->toString(true);
-
-        // When default state is OFF, maintenance rules should be commented
-        $this->assertStringContainsString('# RewriteCond %{REQUEST_URI} !^/maintenance.html$', $output);
-        $this->assertStringContainsString('# RewriteRule', $output);
-    }
-
-    public function testMaintenanceRewriteDefaultOn(): void
-    {
-        $container = new MaintenanceRewrite();
-        $container->process(['enabled' => true, 'defaultState' => true]);
-        $output = $container->toString(true);
-
-        // When default state is ON, maintenance rules should be active
-        $this->assertStringContainsString('RewriteCond %{REQUEST_URI} !^/maintenance.html$', $output);
-    }
-
-    public function testMaintenanceRewriteWithAllowedIps(): void
-    {
-        $container = new MaintenanceRewrite();
-        $container->process([
-            'enabled' => true,
-            'allowedIps' => ['192.168.1.1', '10.0.0.1'],
-            'maintenanceFile' => '/maintenance.html',
-            'defaultState' => true,
-        ]);
-        $output = $container->toString();
-
-        $this->assertStringContainsString('RewriteCond %{REMOTE_ADDR} !^192\.168\.1\.1$', $output);
-        $this->assertStringContainsString('RewriteCond %{REMOTE_ADDR} !^10\.0\.0\.1$', $output);
-    }
-
-    public function testMaintenanceRewriteWithCustomPage(): void
-    {
-        $container = new MaintenanceRewrite();
-        $container->process([
-            'enabled' => true,
-            'maintenanceFile' => '/custom-maintenance.html',
-            'defaultState' => true,
-            'allowedIps' => [],
-        ]);
-        $output = $container->toString();
-
-        $this->assertStringContainsString('/custom-maintenance.html', $output);
-        $this->assertStringContainsString('RewriteCond %{REQUEST_URI} !^/custom-maintenance.html$', $output);
-    }
-
-    public function testMaintenanceRewriteIpEscaping(): void
-    {
-        $container = new MaintenanceRewrite();
-        $container->process([
-            'enabled' => true,
-            'allowedIps' => ['192.168.1.100'],
-            'maintenanceFile' => '/maintenance.html',
-            'defaultState' => true,
-        ]);
-        $output = $container->toString();
-
-        // Verify that dots are properly escaped in regex
-        $this->assertStringContainsString('192\.168\.1\.100', $output);
-        $this->assertStringNotContainsString('192.168.1.100', $output);
-    }
-
-    public function testMaintenanceRewriteRedirectToHome(): void
-    {
-        $container = new MaintenanceRewrite();
-        $container->process([
-            'enabled' => true,
-            'maintenanceFile' => '/maintenance.html',
-            'defaultState' => false,
-        ]);
-        $output = $container->toString();
-
-        // When maintenance is OFF, accessing maintenance page should redirect to home
-        $this->assertStringContainsString('RewriteCond %{REQUEST_URI} ^/maintenance.html$', $output);
-        $this->assertStringContainsString('RewriteRule ^ https://%{HTTP_HOST}/ [L,R=301]', $output);
-    }
-
-    public function testMaintenanceRewriteWithMultipleIps(): void
-    {
-        $allowedIps = ['127.0.0.1', '192.168.1.1', '10.0.0.1', '172.16.0.1'];
-
-        $container = new MaintenanceRewrite();
-        $container->process([
-            'enabled' => true,
-            'allowedIps' => $allowedIps,
-            'maintenanceFile' => '/maintenance.html',
-            'defaultState' => true,
-        ]);
-        $output = $container->toString();
-
-        foreach ($allowedIps as $ip) {
-            $escapedIp = str_replace('.', '\.', $ip);
-            $this->assertStringContainsString("RewriteCond %{REMOTE_ADDR} !^{$escapedIp}$", $output);
-        }
+        return [
+            'off by default: the ON section commented out, IPs escaped' => [['allowedIps' => ['192.168.1.10', '10.0.0.1']], [
+                'RewriteEngine On',
+                '# RewriteCond %{REMOTE_ADDR} !^192\.168\.1\.10$',
+                '# RewriteCond %{REMOTE_ADDR} !^10\.0\.0\.1$',
+                '# RewriteCond %{REQUEST_URI} !^/maintenance.html$',
+                '# RewriteRule $ /maintenance.html [L]',
+                'RewriteCond %{REQUEST_URI} ^/maintenance.html$',
+                'RewriteRule ^ https://%{HTTP_HOST}/ [L,R=301]',
+            ]],
+            'on: the OFF section commented out' => [['allowedIps' => ['192.168.1.10'], 'maintenanceFile' => '/down.html', 'defaultState' => true], [
+                'RewriteEngine On',
+                'RewriteCond %{REMOTE_ADDR} !^192\.168\.1\.10$',
+                'RewriteCond %{REQUEST_URI} !^/down.html$',
+                'RewriteRule $ /down.html [L]',
+                '# RewriteCond %{REQUEST_URI} ^/down.html$',
+                '# RewriteRule ^ https://%{HTTP_HOST}/ [L,R=301]',
+            ]],
+            'empty config adds nothing' => [[], ['RewriteEngine On']],
+        ];
     }
 }

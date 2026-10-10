@@ -1,22 +1,25 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Tests\Directive;
 
+use PHPUnit\Framework\TestCase;
 use JDZ\HtaccessMaker\Directive\AddHandler;
-use Tests\DirectiveTest;
 
-class AddHandlerTest extends DirectiveTest
+class AddHandlerTest extends TestCase
 {
     public function testAddHandlerWithArrayExtensions(): void
     {
         $handler = new AddHandler('cgi-script', ['.php', '.pl', '.py', '.cgi']);
 
-        $this->assertStringContainsString('AddHandler cgi-script .php .pl .py .cgi', $handler->toString());
+        $this->assertSame('AddHandler cgi-script .php .pl .py .cgi', $handler->toString());
     }
 
-    public function testAddHandlerEmpty(): void
+    public function testAddHandlerWithoutExtensionsRendersNothing(): void
     {
         $handler = new AddHandler('cgi-script');
-        $this->assertEquals('', $handler->toString());
+
+        $this->assertSame('', $handler->toString());
     }
 }

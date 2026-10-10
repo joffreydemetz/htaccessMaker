@@ -4,115 +4,51 @@ declare(strict_types=1);
 
 namespace Tests\Container;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\BaseContainerTest;
 use Tests\EmptyContainerTests;
-use Tests\DirectiveContainerTests;
-use Tests\ContainerDefaultsTests;
 use JDZ\HtaccessMaker\Container\PreventCookie;
 
 class PreventCookieTest extends BaseContainerTest
 {
     use EmptyContainerTests;
-    use DirectiveContainerTests;
-    use ContainerDefaultsTests;
 
     protected string $containerClass = PreventCookie::class;
 
-    public function testPreventCookieWithDefaultPattern(): void
+    #[DataProvider('processCases')]
+    public function testProcess(array $config, string $expected): void
     {
         $container = new PreventCookie();
-        $container->process(['enabled' => true]);
+        $container->process($config);
 
-        $output = $container->toString();
-
-        $this->assertStringContainsString('<FilesMatch "\.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$">', $output);
-        $this->assertStringContainsString('Header append Vary "Accept-Encoding"', $output);
+        $this->assertSame($expected, $container->toString());
     }
 
-    public function testPreventCookieSetVaryHeaders(): void
+    public static function processCases(): array
     {
-        $container = new PreventCookie();
-        $container->process([
-            'enabled' => true,
-            'setVaryHeaders' => true,
-        ]);
-
-        $output = $container->toString();
-
-        $this->assertStringContainsString('Header append Vary "Accept-Encoding"', $output);
-        $this->assertStringContainsString('Header append Vary "User-Agent"', $output);
-        $this->assertStringNotContainsString('Header set vary', $output);
-    }
-
-    public function testPreventCookieWithCustomPattern(): void
-    {
-        $container = new PreventCookie();
-        $container->process([
-            'enabled' => true,
-            'pattern' => '\.(jpg|png|gif)$',
-        ]);
-
-        $output = $container->toString();
-
-        // PreventCookie uses a default pattern for static files
-        $this->assertStringContainsString('<FilesMatch', $output);
-        $this->assertStringContainsString('</FilesMatch>', $output);
-    }
-
-    public function testPreventCookieWithMaxAge(): void
-    {
-        $container = new PreventCookie();
-        $container->process([
-            'enabled' => true,
-            'setCacheControl' => true,
-            'maxAge' => 86400,
-        ]);
-
-        $this->assertStringContainsString('max-age=86400', $container->toString());
-    }
-
-    public function testPreventCookieRemoveCookies(): void
-    {
-        $container = new PreventCookie();
-        $container->process([
-            'enabled' => true,
-            'removeCookies' => true
-        ]);
-
-        $output = $container->toString();
-
-        $this->assertStringContainsString('Header unset Cookie', $output);
-        $this->assertStringContainsString('Header unset Set-Cookie', $output);
-    }
-
-    public function testPreventCookieDisableETags(): void
-    {
-        $container = new PreventCookie();
-        $container->process([
-            'enabled' => true,
-            'disableETags' => true
-        ]);
-
-        $this->assertStringContainsString('FileETag None', $container->toString());
-    }
-
-    public function testPreventCookieWithAllOptions(): void
-    {
-        $container = new PreventCookie();
-        $container->process([
-            'enabled' => true,
-            'maxAge' => 31536000,
-            'removeCookies' => true,
-            'setCacheControl' => true,
-            'setConnectionHeaders' => true,
-            'disableETags' => true,
-            'setVaryHeaders' => true
-        ]);
-
-        $output = $container->toString();
-
-        $this->assertStringContainsString('max-age=31536000', $output);
-        $this->assertStringContainsString('Header unset Cookie', $output);
-        $this->assertStringContainsString('FileETag None', $output);
+        return [
+            'defaults, on the static files pattern' => [['enabled' => true], implode("\n", [
+                '<FilesMatch "\.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$">',
+                '  Header unset Cookie',
+                '  Header unset Set-Cookie',
+                '  Header set Cache-Control "public, max-age=31536000"',
+                '  Header append Vary "Accept-Encoding"',
+                '  Header append Vary "User-Agent"',
+                '  Header append Connection "Keep-Alive"',
+                '  Header append Keep-Alive "timeout=5, max=100"',
+                '  FileETag None',
+                '</FilesMatch>',
+                '',
+                '',
+            ])],
+            'cache control only, custom max-age' => [
+                ['maxAge' => 86400, 'removeCookies' => false, 'setVaryHeaders' => false, 'setConnectionHeaders' => false, 'disableETags' => false],
+                "<FilesMatch \"\\.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$\">\n  Header set Cache-Control \"public, max-age=86400\"\n</FilesMatch>\n\n",
+            ],
+            'every option off' => [
+                ['removeCookies' => false, 'setCacheControl' => false, 'setConnectionHeaders' => false, 'disableETags' => false, 'setVaryHeaders' => false],
+                '',
+            ],
+        ];
     }
 }

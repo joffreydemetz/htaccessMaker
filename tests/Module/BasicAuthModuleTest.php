@@ -2,8 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Tests\Container;
+namespace Tests\Module;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\BaseContainerTest;
 use Tests\EmptyContainerTests;
 use JDZ\HtaccessMaker\Module\BasicAuthModule;
@@ -14,22 +15,100 @@ class BasicAuthModuleTest extends BaseContainerTest
 
     protected string $containerClass = BasicAuthModule::class;
 
-    public function testBasicAuthModuleWithSimpleAuth(): void
+    private const FULL_CONFIG = [
+        'authName' => 'Staging',
+        'authUserFile' => '/var/www/.htpasswd',
+        'allowedPaths' => ['^/api/', '^/health$'],
+        'allowedUserAgents' => ['Googlebot', 'bingbot'],
+        'passwordComment' => 'dev:secret',
+        'defaultPaths' => false,
+    ];
+
+    #[DataProvider('processCases')]
+    public function testProcess(array $config, bool $showComments, string $expected): void
     {
-        $container = new BasicAuthModule();
-        $container->addDirective('AuthType Basic');
-        $container->addDirective('AuthName "Protected Area"');
-        $container->addDirective('AuthUserFile /path/to/.htpasswd');
-        $container->addDirective('Require valid-user');
-        $container->ensureApacheCompatibility();
+        $module = new BasicAuthModule();
+        $module->process($config);
 
-        $output = $container->toString();
+        $this->assertSame($expected, $module->toString($showComments));
+    }
 
-        $this->assertStringContainsString('<IfModule mod_auth_basic.c>', $output);
-        $this->assertStringContainsString('AuthType Basic', $output);
-        $this->assertStringContainsString('AuthName "Protected Area"', $output);
-        $this->assertStringContainsString('AuthUserFile /path/to/.htpasswd', $output);
-        $this->assertStringContainsString('Require valid-user', $output);
-        $this->assertStringContainsString('</IfModule>', $output);
+    public static function processCases(): array
+    {
+        return [
+            'defaults: the favicon manifests stay public' => [['enabled' => true], true, implode("\n", [
+                '# Basic Authentication',
+                'SetEnvIf Request_URI "favicon/manifest\.json$" ForceAllow',
+                'SetEnvIf Request_URI "favicon/browserconfig\.xml$" ForceAllow',
+                'AuthName "Protected Area"',
+                'AuthType Basic',
+                'AuthUserFile /path/to/.htpasswd',
+                'Require valid-user',
+                'Order deny,allow',
+                'Deny from all',
+                'Allow from env=ForceAllow',
+                'Satisfy Any',
+                '',
+                '',
+            ])],
+            'every key: allowed paths, then user agents, then the auth block' => [self::FULL_CONFIG, true, implode("\n", [
+                '# Basic Authentication',
+                'SetEnvIf Request_URI "^/api/" ForceAllow',
+                'SetEnvIf Request_URI "^/health$" ForceAllow',
+                'SetEnvIfNoCase User-Agent "Googlebot" ForceAllow',
+                'SetEnvIfNoCase User-Agent "bingbot" ForceAllow',
+                'AuthName "Staging"',
+                'AuthType Basic',
+                'AuthUserFile /var/www/.htpasswd',
+                'Require valid-user',
+                'Order deny,allow',
+                'Deny from all',
+                'Allow from env=ForceAllow',
+                'Satisfy Any',
+                '# dev:secret',
+                '',
+                '',
+            ])],
+            'comments hidden: the password comment is forced' => [self::FULL_CONFIG, false, implode("\n", [
+                'SetEnvIf Request_URI "^/api/" ForceAllow',
+                'SetEnvIf Request_URI "^/health$" ForceAllow',
+                'SetEnvIfNoCase User-Agent "Googlebot" ForceAllow',
+                'SetEnvIfNoCase User-Agent "bingbot" ForceAllow',
+                'AuthName "Staging"',
+                'AuthType Basic',
+                'AuthUserFile /var/www/.htpasswd',
+                'Require valid-user',
+                'Order deny,allow',
+                'Deny from all',
+                'Allow from env=ForceAllow',
+                'Satisfy Any',
+                '# dev:secret',
+                '',
+                '',
+            ])],
+        ];
+    }
+
+    public function testWrappedWithApacheCompatibility(): void
+    {
+        $module = new BasicAuthModule();
+        $module->process(['authUserFile' => '/var/www/.htpasswd', 'defaultPaths' => false]);
+        $module->ensureApacheCompatibility();
+
+        $this->assertSame(implode("\n", [
+            '<IfModule mod_auth_basic.c>',
+            '  # Basic Authentication',
+            '  AuthName "Protected Area"',
+            '  AuthType Basic',
+            '  AuthUserFile /var/www/.htpasswd',
+            '  Require valid-user',
+            '  Order deny,allow',
+            '  Deny from all',
+            '  Allow from env=ForceAllow',
+            '  Satisfy Any',
+            '</IfModule>',
+            '',
+            '',
+        ]), $module->toString());
     }
 }

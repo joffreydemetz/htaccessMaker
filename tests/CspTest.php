@@ -7,59 +7,40 @@ namespace Tests;
 use PHPUnit\Framework\TestCase;
 use JDZ\HtaccessMaker\Csp;
 
+/**
+ * Csp is the deprecated shim over JDZ\CspMaker\Policy: addToGroup() and merge() are its
+ * own code; the normalisation cases (keywords, ordering, duplicates) pin what the old
+ * htaccessMaker API still returns through jdz/cspmaker.
+ */
 class CspTest extends TestCase
 {
     public function testCspCreationWithArray(): void
     {
-        $config = [
-            'default' => ['self'],
-            'script' => ['self', 'unsafe-inline']
-        ];
-        $csp = new Csp($config);
+        $csp = new Csp(['default' => ['self'], 'script' => ['self', 'unsafe-inline']]);
 
-        $output = $csp->__toString();
-        $this->assertStringContainsString("default-src 'self';", $output);
-        $this->assertStringContainsString("script-src 'self' 'unsafe-inline';", $output);
+        $this->assertSame("default-src 'self'; script-src 'self' 'unsafe-inline';", (string) $csp);
     }
 
     public function testEmptyCsp(): void
     {
-        $csp = new Csp();
-        $output = $csp->__toString();
-        $this->assertEquals('', $output);
+        $this->assertSame('', (string) new Csp());
     }
 
-    public function testAddToGroup(): void
+    public function testAddToGroupAppends(): void
     {
-        $csp = new Csp();
-        $result = $csp->addToGroup('default', ['self']);
+        $csp = new Csp(['default' => ['self']]);
+        $csp->addToGroup('default', ['https://cdn.example.com']);
 
-        $this->assertSame($csp, $result); // Test fluent interface
-
-        $output = $csp->__toString();
-        $this->assertStringContainsString("default-src 'self';", $output);
+        $this->assertSame("default-src 'self' https://cdn.example.com;", (string) $csp);
     }
 
-    public function testAddToGroupWithMultipleItems(): void
+    public function testAddToGroupOverwrite(): void
     {
         $csp = new Csp();
-        $csp->addToGroup('script', ['self', 'unsafe-inline', 'https://example.com']);
+        $csp->addToGroup('default', ['self', 'unsafe-inline']);
+        $csp->addToGroup('default', ['self'], true);
 
-        $output = $csp->__toString();
-        $this->assertStringContainsString("script-src 'self' 'unsafe-inline' https://example.com;", $output);
-    }
-
-    public function testSpecialValueNormalization(): void
-    {
-        $csp = new Csp();
-        // 'none' alongside real sources is a spec no-op and is dropped
-        $csp->addToGroup('default', ['self', 'data', 'unsafe-inline', 'unsafe-eval']);
-
-        $output = $csp->__toString();
-        $this->assertStringContainsString("'self'", $output);
-        $this->assertStringContainsString("data:", $output);
-        $this->assertStringContainsString("'unsafe-inline'", $output);
-        $this->assertStringContainsString("'unsafe-eval'", $output);
+        $this->assertSame("default-src 'self';", (string) $csp);
     }
 
     public function testMergeWithoutOverwrite(): void
@@ -67,9 +48,7 @@ class CspTest extends TestCase
         $csp = new Csp(['default' => ['self']]);
         $csp->merge(['default' => ['unsafe-inline'], 'script' => ['self']]);
 
-        $output = $csp->__toString();
-        $this->assertStringContainsString("default-src 'self' 'unsafe-inline';", $output);
-        $this->assertStringContainsString("script-src 'self';", $output);
+        $this->assertSame("default-src 'self' 'unsafe-inline'; script-src 'self';", (string) $csp);
     }
 
     public function testMergeWithOverwrite(): void
@@ -77,9 +56,39 @@ class CspTest extends TestCase
         $csp = new Csp(['default' => ['self', 'unsafe-inline']]);
         $csp->merge(['default' => ['self']], true);
 
-        $output = $csp->__toString();
-        $this->assertStringContainsString("default-src 'self';", $output);
-        $this->assertStringNotContainsString('unsafe-inline', $output);
+        $this->assertSame("default-src 'self';", (string) $csp);
+    }
+
+    public function testMergeAcceptsOneSourceAsAString(): void
+    {
+        $csp = new Csp();
+        $csp->merge(['default' => 'self', 'img' => 'data']);
+
+        $this->assertSame("default-src 'self'; img-src data:;", (string) $csp);
+    }
+
+    public function testSpecialValueNormalization(): void
+    {
+        $csp = new Csp();
+        $csp->addToGroup('default', ['self', 'data', 'unsafe-inline', 'unsafe-eval']);
+
+        $this->assertSame("default-src 'self' 'unsafe-eval' 'unsafe-inline' data:;", (string) $csp);
+    }
+
+    public function testSpecialValueOrdering(): void
+    {
+        $csp = new Csp();
+        $csp->addToGroup('script', ['unsafe-inline', 'https://example.com', 'self', 'data', 'unsafe-eval']);
+
+        $this->assertSame("script-src 'self' 'unsafe-eval' 'unsafe-inline' data: https://example.com;", (string) $csp);
+    }
+
+    public function testUniqueValues(): void
+    {
+        $csp = new Csp();
+        $csp->addToGroup('default', ['self', 'self', 'unsafe-inline', 'self']);
+
+        $this->assertSame("default-src 'self' 'unsafe-inline';", (string) $csp);
     }
 
     public function testNonSourceDirectives(): void
@@ -89,21 +98,7 @@ class CspTest extends TestCase
         $csp->addToGroup('form-action', ['self']);
         $csp->addToGroup('frame-ancestors', ['none']);
 
-        $output = $csp->__toString();
-        $this->assertStringContainsString("base-uri 'self';", $output);
-        $this->assertStringContainsString("form-action 'self';", $output);
-        $this->assertStringContainsString("frame-ancestors 'none';", $output);
-    }
-
-    public function testUniqueValues(): void
-    {
-        $csp = new Csp();
-        $csp->addToGroup('default', ['self', 'self', 'unsafe-inline', 'self']);
-
-        $output = $csp->__toString();
-        // Should only contain 'self' and 'unsafe-inline' once each
-        $this->assertEquals(1, substr_count($output, "'self'"));
-        $this->assertEquals(1, substr_count($output, "'unsafe-inline'"));
+        $this->assertSame("base-uri 'self'; form-action 'self'; frame-ancestors 'none';", (string) $csp);
     }
 
     public function testComplexCspPolicy(): void
@@ -115,44 +110,14 @@ class CspTest extends TestCase
             'img' => ['self', 'data', 'https:'],
             'font' => ['self', 'https://fonts.gstatic.com'],
             'connect' => ['self'],
-            'frame' => ['none']
+            'frame' => ['none'],
         ]);
 
-        $output = $csp->__toString();
-
-        $this->assertStringContainsString("default-src 'self';", $output);
-        $this->assertStringContainsString("script-src 'self' 'unsafe-inline' https://apis.google.com;", $output);
-        $this->assertStringContainsString("style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;", $output);
-        $this->assertStringContainsString("img-src 'self' data: https:;", $output);
-        $this->assertStringContainsString("font-src 'self' https://fonts.gstatic.com;", $output);
-        $this->assertStringContainsString("connect-src 'self';", $output);
-        $this->assertStringContainsString("frame-src 'none';", $output);
-    }
-
-    public function testAddToGroupOverwrite(): void
-    {
-        $csp = new Csp();
-        $csp->addToGroup('default', ['self', 'unsafe-inline']);
-        $csp->addToGroup('default', ['self'], true); // Overwrite
-
-        $output = $csp->__toString();
-        $this->assertStringContainsString("default-src 'self';", $output);
-        $this->assertStringNotContainsString('unsafe-inline', $output);
-    }
-
-    public function testSpecialValueOrdering(): void
-    {
-        $csp = new Csp();
-        // 'none' alongside real sources is a spec no-op and is dropped
-        $csp->addToGroup('script', ['unsafe-inline', 'https://example.com', 'self', 'data', 'unsafe-eval']);
-
-        $output = $csp->__toString();
-
-        // Check that special values are properly ordered and formatted
-        $this->assertStringContainsString("'self'", $output);
-        $this->assertStringContainsString("'unsafe-inline'", $output);
-        $this->assertStringContainsString("'unsafe-eval'", $output);
-        $this->assertStringContainsString("data:", $output);
-        $this->assertStringContainsString("https://example.com", $output);
+        $this->assertSame(
+            "default-src 'self'; connect-src 'self'; font-src 'self' https://fonts.gstatic.com; frame-src 'none'; "
+                . "img-src 'self' data: https:; script-src 'self' 'unsafe-inline' https://apis.google.com; "
+                . "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;",
+            (string) $csp
+        );
     }
 }

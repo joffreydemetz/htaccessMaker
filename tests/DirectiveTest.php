@@ -4,37 +4,46 @@ declare(strict_types=1);
 
 namespace Tests;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use JDZ\HtaccessMaker\Directive;
-use JDZ\HtaccessMaker\Directive\Comment;
+use JDZ\HtaccessMaker\EmptyLine;
 use JDZ\HtaccessMaker\Directive\ServerSignature;
+use JDZ\HtaccessMaker\Directive\ValueDirective;
 
+/**
+ * The rendering every directive shares: name + value, indentation, forced comment.
+ * Each directive's own value formatting is tested in tests/Directive/.
+ */
 class DirectiveTest extends TestCase
 {
-    public function testForceComment(): void
+    #[DataProvider('renderCases')]
+    public function testToString(Directive $directive, bool $showComments, int $indent, string $expected): void
     {
-        $directive = new ServerSignature('Off');
-        $directive->setForceComment(true);
-
-        $this->assertStringStartsWith('# ServerSignature Off', $directive->toString());
-        $this->assertStringStartsWith('# ServerSignature Off', $directive->toString(false));
+        $this->assertSame($expected, $directive->toString($showComments, $indent));
     }
 
-    public function testWithoutForceComment(): void
+    public static function renderCases(): array
     {
-        $directive = new ServerSignature('Off');
-
-        $this->assertStringStartsWith('ServerSignature Off', $directive->toString());
-        $this->assertStringStartsWith('ServerSignature Off', $directive->toString(false));
+        return [
+            'name and value' => [new ServerSignature('Off'), true, 0, 'ServerSignature Off'],
+            'hiding comments leaves a directive alone' => [new ServerSignature('Off'), false, 0, 'ServerSignature Off'],
+            'indent 1' => [new ServerSignature('Off'), true, 1, '  ServerSignature Off'],
+            'indent 3' => [new ServerSignature('Off'), true, 3, '      ServerSignature Off'],
+            'forced comment' => [(new ServerSignature('Off'))->setForceComment(), true, 0, '# ServerSignature Off'],
+            'forced comment survives hidden comments' => [(new ServerSignature('Off'))->setForceComment(), false, 0, '# ServerSignature Off'],
+            'forced comment, indented' => [(new ServerSignature('Off'))->setForceComment(), true, 2, '    # ServerSignature Off'],
+            'forced comment switched off again' => [(new ServerSignature('Off'))->setForceComment()->setForceComment(false), true, 0, 'ServerSignature Off'],
+            'no name and no value' => [new Directive(), true, 0, ''],
+            'EmptyLine renders nothing by itself' => [new EmptyLine(), true, 0, ''],
+        ];
     }
 
-    public function testIndentation(): void
+    public function testSetNameNamesABareValueDirective(): void
     {
-        $directive = new ServerSignature('Off');
+        $directive = new ValueDirective('Off');
+        $directive->setName('ServerSignature');
 
-        $this->assertStringStartsWith('ServerSignature Off', $directive->toString(false));
-        $this->assertStringStartsWith('  ServerSignature Off', $directive->toString(false, 1));
-        $this->assertStringStartsWith('    ServerSignature Off', $directive->toString(false, 2));
-        $this->assertStringStartsWith('      ServerSignature Off', $directive->toString(false, 3));
+        $this->assertSame('ServerSignature Off', $directive->toString());
     }
 }

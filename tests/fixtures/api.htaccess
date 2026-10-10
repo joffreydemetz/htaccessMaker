@@ -1,0 +1,53 @@
+ServerSignature Off
+<LimitExcept GET POST PUT DELETE>
+  Deny from all
+</LimitExcept>
+
+Header unset X-Powered-By
+
+Header always append X-Frame-Options DENY
+Header set X-Content-Type-Options nosniff
+Header set Referrer-Policy "no-referrer"
+
+<IfModule mod_deflate.c>
+  SetOutputFilter DEFLATE
+  AddOutputFilterByType DEFLATE application/json
+  Header append Vary "Accept-Encoding" env=!dont-vary
+</IfModule>
+
+SetEnvIf Request_URI "^/api/health$" ForceAllow
+SetEnvIfNoCase User-Agent "UptimeRobot" ForceAllow
+AuthName "Staging API"
+AuthType Basic
+AuthUserFile /var/www/staging/.htpasswd
+Require valid-user
+Order deny,allow
+Deny from all
+Allow from env=ForceAllow
+Satisfy Any
+# staging:changeme
+
+RewriteEngine On
+RewriteCond %{QUERY_STRING} (;|<|>|'|"|\)|%0A|%0D|%22|%27|%3C|%3E|%00).*(/\*|union|select|insert|cast|set|declare|drop|update|md5|benchmark) [NC,OR]
+RewriteCond %{QUERY_STRING} (localhost|loopback|127\.0\.0\.1) [NC,OR]
+RewriteCond %{QUERY_STRING} (alter|create|delete|drop|exec|execute|insert|select|union|update) [NC]
+RewriteRule .* /index.php [F]
+RewriteCond %{REQUEST_METHOD} ^(TRACE|TRACK) [NC]
+RewriteRule .* /index.php [F]
+
+RewriteEngine On
+RewriteCond %{HTTPS} off
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+
+RewriteEngine On
+RewriteBase /api/
+RewriteCond %{HTTP_HOST} =api.example.com
+RewriteCond %{REQUEST_URI} !^/api.php
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule .* api.php [L]
+RewriteCond %{REQUEST_URI} !^/index.php
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.php [L]
+

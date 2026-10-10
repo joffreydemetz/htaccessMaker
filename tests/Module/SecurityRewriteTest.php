@@ -2,86 +2,134 @@
 
 declare(strict_types=1);
 
-namespace Tests\Container;
+namespace Tests\Module;
 
-use Tests\BaseContainerTest;
-use Tests\DirectiveContainerTests;
-use Tests\ContainerDefaultsTests;
+use Closure;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\TestCase;
 use JDZ\HtaccessMaker\Module\SecurityRewrite;
 
-class SecurityRewriteTest extends BaseContainerTest
+class SecurityRewriteTest extends TestCase
 {
-    use DirectiveContainerTests;
-    use ContainerDefaultsTests;
+    private const URL_ATTACKS = [
+        '# Block out any script trying to base64_encode data within the URL.',
+        'RewriteCond %{QUERY_STRING} base64_encode[^(]*\([^)]*\) [OR]',
+        '# Block out any script that includes a <script> tag in URL.',
+        'RewriteCond %{QUERY_STRING} (<|%3C)([^s]*s)+cript.*(>|%3E) [NC,OR]',
+        '# Block out any script trying to set a PHP GLOBALS variable via URL.',
+        'RewriteCond %{QUERY_STRING} GLOBALS(=|\[|\%[0-9A-Z]{0,2}) [OR]',
+        '# Block out any script trying to modify a _REQUEST variable via URL.',
+        'RewriteCond %{QUERY_STRING} _REQUEST(=|\[|\%[0-9A-Z]{0,2})',
+        '# Return 403 Forbidden header and show the content of the root homepage',
+    ];
 
-    protected string $containerClass = SecurityRewrite::class;
+    private const SQL_INJECTION = [
+        '# Block SQL injection attacks',
+        'RewriteCond %{QUERY_STRING} (;|<|>|\'|"|\)|%0A|%0D|%22|%27|%3C|%3E|%00).*(/\*|union|select|insert|cast|set|declare|drop|update|md5|benchmark) [NC,OR]',
+        'RewriteCond %{QUERY_STRING} (localhost|loopback|127\.0\.0\.1) [NC,OR]',
+        'RewriteCond %{QUERY_STRING} (alter|create|delete|drop|exec|execute|insert|select|union|update) [NC]',
+    ];
 
-    public function testSecurityRewriteWithUrlAttackBlocking(): void
+    private const SHELL_INJECTION = [
+        '# Block shell injection and file upload attacks',
+        'RewriteCond %{REQUEST_URI} ((php|my|bypass)?shell|remview.*|phpremoteview.*|sshphp.*|pcom|nstview.*|c99|c100|r57|webadmin.*|phpget.*|phpwriter.*|fileditor.*|locus7.*|storm7.*) [NC,OR]',
+        'RewriteCond %{REQUEST_URI} (\.exe|\.tar|_vti|afilter=|algeria\.php|chbd|chmod|cmd|command|db_query|download_file|echo|edit_file|eval|evil_root|exploit) [NC,OR]',
+        'RewriteCond %{REQUEST_URI} (find_text|fopen|fsbuff|fwrite|friends_links\.|ftp|gofile|grab|grep|htshell|lynx|mail_file|md5|mkdir|mkfile|mkmode) [NC,OR]',
+        'RewriteCond %{REQUEST_URI} (passthru|popen|proc_open|processes|pwd|rmdir|root|safe0ver|search_text|selfremove|setup\.php|shell|system|telnet|trojan|uname|unzip|whoami|xampp) [NC]',
+    ];
+
+    /**
+     * @param Closure(SecurityRewrite): mixed $add
+     */
+    #[DataProvider('blockCases')]
+    public function testAddBlock(Closure $add, string $expected): void
     {
-        $container = new SecurityRewrite();
-        $container->ensureApacheCompatibility();
-        $container->addUrlAttackBlocking();
+        $module = new SecurityRewrite();
+        $add($module);
 
-        $output = $container->toString();
-
-        $this->assertStringContainsString('<IfModule mod_rewrite.c>', $output);
-        $this->assertStringContainsString('RewriteEngine On', $output);
-        $this->assertStringContainsString('# Block out any script', $output);
-        $this->assertStringContainsString('RewriteCond', $output);
-        $this->assertStringContainsString('base64_encode', $output);
-        $this->assertStringContainsString('[F]', $output);
-        $this->assertStringContainsString('</IfModule>', $output);
+        $this->assertSame($expected, $module->toString());
     }
 
-    public function testSecurityRewriteWithSqlInjectionBlocking(): void
+    public static function blockCases(): array
     {
-        $container = new SecurityRewrite();
-        $container->ensureApacheCompatibility();
-        $container->addSqlInjectionBlocking();
-
-        $output = $container->toString();
-
-        $this->assertStringContainsString('<IfModule mod_rewrite.c>', $output);
-        $this->assertStringContainsString('RewriteEngine On', $output);
-        $this->assertStringContainsString('# Block SQL injection attacks', $output);
-        $this->assertStringContainsString('RewriteCond', $output);
-        $this->assertStringContainsString('union|select|insert', $output);
-        $this->assertStringContainsString('[F]', $output);
-        $this->assertStringContainsString('</IfModule>', $output);
+        return [
+            'URL attacks, default action and flag' => [
+                static fn(SecurityRewrite $m) => $m->addUrlAttackBlocking(),
+                self::lines(...self::URL_ATTACKS, ...['RewriteRule .* index.php [F]']),
+            ],
+            'URL attacks, own action' => [
+                static fn(SecurityRewrite $m) => $m->addUrlAttackBlocking('/blocked.html'),
+                self::lines(...self::URL_ATTACKS, ...['RewriteRule .* /blocked.html [F]']),
+            ],
+            'SQL injection, own action and flags' => [
+                static fn(SecurityRewrite $m) => $m->addSqlInjectionBlocking('/error.html', ['R=403', 'L']),
+                self::lines(...self::SQL_INJECTION, ...['RewriteRule .* /error.html [R=403,L]']),
+            ],
+            'shell injection' => [
+                static fn(SecurityRewrite $m) => $m->addShellInjectionBlocking(),
+                self::lines(...self::SHELL_INJECTION, ...['RewriteRule .* index.php [F]']),
+            ],
+            'HTTP methods, default list' => [
+                static fn(SecurityRewrite $m) => $m->addHttpMethodBlocking(),
+                self::lines('# Block dangerous HTTP methods', 'RewriteCond %{REQUEST_METHOD} ^(HEAD|TRACE|TRACK) [NC]', 'RewriteRule .* index.php [F]'),
+            ],
+            'HTTP methods, own list' => [
+                static fn(SecurityRewrite $m) => $m->addHttpMethodBlocking(['PUT', 'DELETE']),
+                self::lines('# Block dangerous HTTP methods', 'RewriteCond %{REQUEST_METHOD} ^(PUT|DELETE) [NC]', 'RewriteRule .* index.php [F]'),
+            ],
+            'referrers: illegal characters, the given ones, the spam list' => [
+                static fn(SecurityRewrite $m) => $m->addReferrerBlocking(['spam\.example']),
+                self::lines(
+                    '# Block malicious referrers',
+                    'RewriteCond %{HTTP_REFERER} (<|>|\'|%0A|%0D|%27|%3C|%3E|%00) [NC,OR]',
+                    'RewriteCond %{HTTP_REFERER} spam\.example [NC,OR]',
+                    'RewriteCond %{HTTP_REFERER} (semalt|kambasoft|savetubevideo|buttons-for-website|aliexpress) [NC]',
+                    'RewriteRule .* index.php [F]',
+                ),
+            ],
+        ];
     }
 
-    public function testSecurityRewriteWithShellInjectionBlocking(): void
+    /**
+     * Default config minus the request blocking (its pattern does not compile, reported).
+     * The default method list names HEAD twice: it is rendered once.
+     */
+    public function testProcessDefaultsWithoutRequestBlocking(): void
     {
-        $container = new SecurityRewrite();
-        $container->ensureApacheCompatibility();
-        $container->addShellInjectionBlocking();
+        $module = new SecurityRewrite();
+        $module->process(['blockMaliciousRequests' => false]);
 
-        $output = $container->toString();
-
-        $this->assertStringContainsString('<IfModule mod_rewrite.c>', $output);
-        $this->assertStringContainsString('RewriteEngine On', $output);
-        $this->assertStringContainsString('# Block shell injection', $output);
-        $this->assertStringContainsString('RewriteCond', $output);
-        $this->assertStringContainsString('[F]', $output);
-        $this->assertStringContainsString('</IfModule>', $output);
+        $this->assertSame(self::lines(
+            ...self::URL_ATTACKS,
+            ...['RewriteRule .* /index.php [R=403,L]'],
+            ...self::SQL_INJECTION,
+            ...['RewriteRule .* /index.php [R=403,L]'],
+            ...self::SHELL_INJECTION,
+            ...[
+                'RewriteRule .* /index.php [R=403,L]',
+                '# Block dangerous HTTP methods',
+                'RewriteCond %{REQUEST_METHOD} ^(HEAD|TRACE|TRACK|OPTIONS|PUT|DELETE) [NC]',
+                'RewriteRule .* /index.php [R=403,L]',
+            ],
+        ), $module->toString());
     }
 
-    public function testSecurityRewriteWithHttpMethodBlocking(): void
+    public function testProcessWithEveryBlockOff(): void
     {
-        $container = new SecurityRewrite();
-        $container->ensureApacheCompatibility();
-        $container->addHttpMethodBlocking(['TRACE', 'TRACK']);
+        $module = new SecurityRewrite();
+        $module->process([
+            'blockUrlAttacks' => false,
+            'blockSqlInjection' => false,
+            'blockShellInjection' => false,
+            'blockMaliciousRequests' => false,
+            'blacklistHttpMethods' => [],
+        ]);
 
-        $output = $container->toString();
-
-        $this->assertStringContainsString('<IfModule mod_rewrite.c>', $output);
-        $this->assertStringContainsString('RewriteEngine On', $output);
-        $this->assertStringContainsString('# Block dangerous HTTP methods', $output);
-        $this->assertStringContainsString('RewriteCond %{REQUEST_METHOD}', $output);
-        $this->assertStringContainsString('TRACE|TRACK', $output);
-        $this->assertStringContainsString('[F]', $output);
-        $this->assertStringContainsString('</IfModule>', $output);
+        $this->assertSame("RewriteEngine On\n\n", $module->toString());
     }
+
+    // The next three only check fragments on purpose: addUserAgentBlocking() and
+    // addRequestBlocking() render lines that are reported as bugs, not pinned.
 
     public function testSecurityRewriteWithUserAgentBlocking(): void
     {
@@ -95,22 +143,6 @@ class SecurityRewriteTest extends BaseContainerTest
         $this->assertStringContainsString('RewriteEngine On', $output);
         $this->assertStringContainsString('# Block malicious user agents', $output);
         $this->assertStringContainsString('RewriteCond %{HTTP_USER_AGENT}', $output);
-        $this->assertStringContainsString('[F]', $output);
-        $this->assertStringContainsString('</IfModule>', $output);
-    }
-
-    public function testSecurityRewriteWithReferrerBlocking(): void
-    {
-        $container = new SecurityRewrite();
-        $container->ensureApacheCompatibility();
-        $container->addReferrerBlocking(['spam.com', 'malicious.net']);
-
-        $output = $container->toString();
-
-        $this->assertStringContainsString('<IfModule mod_rewrite.c>', $output);
-        $this->assertStringContainsString('RewriteEngine On', $output);
-        $this->assertStringContainsString('# Block malicious referrers', $output);
-        $this->assertStringContainsString('RewriteCond %{HTTP_REFERER}', $output);
         $this->assertStringContainsString('[F]', $output);
         $this->assertStringContainsString('</IfModule>', $output);
     }
@@ -132,58 +164,6 @@ class SecurityRewriteTest extends BaseContainerTest
         $this->assertStringContainsString('</IfModule>', $output);
     }
 
-    public function testSecurityRewriteWithAllSecurityRules(): void
-    {
-        $container = new SecurityRewrite();
-        $container->ensureApacheCompatibility();
-        $container->addUrlAttackBlocking();
-        $container->addSqlInjectionBlocking();
-        $container->addShellInjectionBlocking();
-
-        $output = $container->toString();
-
-        $this->assertStringContainsString('<IfModule mod_rewrite.c>', $output);
-        $this->assertStringContainsString('RewriteEngine On', $output);
-
-        // Should contain multiple RewriteCond statements
-        $condCount = substr_count($output, 'RewriteCond');
-        $this->assertGreaterThan(5, $condCount);
-
-        // Should contain multiple forbidden rules
-        $forbiddenCount = substr_count($output, '[F]');
-        $this->assertGreaterThan(2, $forbiddenCount);
-
-        $this->assertStringContainsString('</IfModule>', $output);
-    }
-
-    public function testSecurityRewriteWithCustomBlockAction(): void
-    {
-        $container = new SecurityRewrite();
-        $container->ensureApacheCompatibility();
-        $container->addUrlAttackBlocking('/blocked.html');
-
-        $output = $container->toString();
-
-        $this->assertStringContainsString('<IfModule mod_rewrite.c>', $output);
-        $this->assertStringContainsString('RewriteEngine On', $output);
-        $this->assertStringContainsString('RewriteRule .* /blocked.html', $output);
-        $this->assertStringContainsString('</IfModule>', $output);
-    }
-
-    public function testSecurityRewriteWithCustomFlags(): void
-    {
-        $container = new SecurityRewrite();
-        $container->ensureApacheCompatibility();
-        $container->addSqlInjectionBlocking('/error.html', ['R=403', 'L']);
-
-        $output = $container->toString();
-
-        $this->assertStringContainsString('<IfModule mod_rewrite.c>', $output);
-        $this->assertStringContainsString('RewriteEngine On', $output);
-        $this->assertStringContainsString('RewriteRule .* /error.html [R=403,L]', $output);
-        $this->assertStringContainsString('</IfModule>', $output);
-    }
-
     public function testSecurityRewriteWithEmptyUserAgentBlocking(): void
     {
         $container = new SecurityRewrite();
@@ -199,31 +179,11 @@ class SecurityRewriteTest extends BaseContainerTest
         $this->assertStringContainsString('</IfModule>', $output);
     }
 
-    public function testSecurityRewriteWithMultipleHttpMethods(): void
+    /**
+     * The module's rendering: RewriteEngine On, the given lines, a closing blank line.
+     */
+    private static function lines(string ...$lines): string
     {
-        $container = new SecurityRewrite();
-        $container->ensureApacheCompatibility();
-        $container->addHttpMethodBlocking(['HEAD', 'TRACE', 'TRACK', 'OPTIONS', 'PUT', 'DELETE']);
-
-        $output = $container->toString();
-
-        $this->assertStringContainsString('<IfModule mod_rewrite.c>', $output);
-        $this->assertStringContainsString('RewriteEngine On', $output);
-        $this->assertStringContainsString('HEAD|TRACE|TRACK|OPTIONS|PUT|DELETE', $output);
-        $this->assertStringContainsString('</IfModule>', $output);
-    }
-
-    public function testSecurityRewriteWithDefaultHttpMethods(): void
-    {
-        $container = new SecurityRewrite();
-        $container->ensureApacheCompatibility();
-        $container->addHttpMethodBlocking();
-
-        $output = $container->toString();
-
-        $this->assertStringContainsString('<IfModule mod_rewrite.c>', $output);
-        $this->assertStringContainsString('RewriteEngine On', $output);
-        $this->assertStringContainsString('HEAD|TRACE|TRACK', $output);
-        $this->assertStringContainsString('</IfModule>', $output);
+        return implode("\n", ['RewriteEngine On', ...$lines, '', '']);
     }
 }

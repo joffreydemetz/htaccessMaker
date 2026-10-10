@@ -2,238 +2,79 @@
 
 declare(strict_types=1);
 
-namespace Tests\Container;
+namespace Tests\Module;
 
-use Tests\BaseContainerTest;
-use Tests\DirectiveContainerTests;
-use Tests\ContainerDefaultsTests;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\TestCase;
 use JDZ\HtaccessMaker\Module\ExpiresModule;
 
-class ExpiresModuleTest extends BaseContainerTest
+class ExpiresModuleTest extends TestCase
 {
-    use DirectiveContainerTests;
-    use ContainerDefaultsTests;
+    private const COMMON_RULES = [
+        '  ExpiresByType image/jpg "access plus 1 month"',
+        '  ExpiresByType image/jpeg "access plus 1 month"',
+        '  ExpiresByType image/gif "access plus 1 month"',
+        '  ExpiresByType image/png "access plus 1 month"',
+        '  ExpiresByType text/css "access plus 1 month"',
+        '  ExpiresByType text/javascript "access plus 1 month"',
+        '  ExpiresByType application/pdf "access plus 1 month"',
+        '  ExpiresByType application/javascript "access plus 1 month"',
+        '  ExpiresByType application/x-javascript "access plus 1 month"',
+        '  ExpiresByType image/x-icon "access plus 1 year"',
+    ];
 
-    protected string $containerClass = ExpiresModule::class;
-
-    public function testExpiresModuleCreation(): void
-    {
-        $container = new ExpiresModule();
-        $this->assertInstanceOf(ExpiresModule::class, $container);
-    }
-
-    public function testExpiresModuleWithBasicExpires(): void
-    {
-        $container = new ExpiresModule();
-        $container->addDirective('ExpiresActive On');
-        $container->addDirective('ExpiresDefault "access plus 1 month"');
-        $container->ensureApacheCompatibility();
-
-        $output = $container->toString(true);
-
-        $this->assertStringContainsString('<IfModule mod_expires.c>', $output);
-        $this->assertStringContainsString('ExpiresActive On', $output);
-        $this->assertStringContainsString('ExpiresDefault "access plus 1 month"', $output);
-        $this->assertStringContainsString('</IfModule>', $output);
-    }
-
-    public function testExpiresModuleWithFileTypeExpires(): void
-    {
-        $container = new ExpiresModule();
-        $container->addDirective('ExpiresActive On');
-        $container->addDirective('ExpiresByType text/css "access plus 1 year"');
-        $container->addDirective('ExpiresByType application/javascript "access plus 1 year"');
-        $container->addDirective('ExpiresByType image/png "access plus 1 month"');
-        $container->addDirective('ExpiresByType image/jpg "access plus 1 month"');
-        $container->addDirective('ExpiresByType image/jpeg "access plus 1 month"');
-        $container->addDirective('ExpiresByType image/gif "access plus 1 month"');
-
-        $output = $container->toString(true);
-
-        $this->assertStringContainsString('ExpiresByType text/css "access plus 1 year"', $output);
-        $this->assertStringContainsString('ExpiresByType application/javascript "access plus 1 year"', $output);
-        $this->assertStringContainsString('ExpiresByType image/png "access plus 1 month"', $output);
-        $this->assertStringContainsString('ExpiresByType image/jpeg "access plus 1 month"', $output);
-    }
-
-    public function testExpiresModuleWithVariousTimeFormats(): void
-    {
-        $container = new ExpiresModule();
-        $container->addDirective('ExpiresActive On');
-        $container->addDirective('ExpiresByType text/html "access plus 1 hour"');
-        $container->addDirective('ExpiresByType text/plain "access plus 1 day"');
-        $container->addDirective('ExpiresByType application/pdf "access plus 1 week"');
-        $container->addDirective('ExpiresByType video/mp4 "access plus 6 months"');
-
-        $output = $container->toString(true);
-
-        $this->assertStringContainsString('"access plus 1 hour"', $output);
-        $this->assertStringContainsString('"access plus 1 day"', $output);
-        $this->assertStringContainsString('"access plus 1 week"', $output);
-        $this->assertStringContainsString('"access plus 6 months"', $output);
-    }
-
-    public function testExpiresModuleWithModificationTime(): void
-    {
-        $container = new ExpiresModule();
-        $container->addDirective('ExpiresActive On');
-        $container->addDirective('ExpiresByType text/html "modification plus 2 hours"');
-        $container->addDirective('ExpiresByType application/json "modification plus 1 day"');
-
-        $output = $container->toString(true);
-
-        $this->assertStringContainsString('"modification plus 2 hours"', $output);
-        $this->assertStringContainsString('"modification plus 1 day"', $output);
-    }
-
-    public function testExpiresModuleWithNowTime(): void
-    {
-        $container = new ExpiresModule();
-        $container->addDirective('ExpiresActive On');
-        $container->addDirective('ExpiresByType text/css "now plus 1 year"');
-        $container->addDirective('ExpiresByType application/javascript "now plus 1 year"');
-
-        $output = $container->toString(true);
-
-        $this->assertStringContainsString('"now plus 1 year"', $output);
-    }
-
-    public function testExpiresModuleWithFontFiles(): void
-    {
-        $container = new ExpiresModule();
-        $container->addDirective('ExpiresActive On');
-        $container->addDirective('ExpiresByType application/font-woff "access plus 1 year"');
-        $container->addDirective('ExpiresByType application/font-woff2 "access plus 1 year"');
-        $container->addDirective('ExpiresByType application/vnd.ms-fontobject "access plus 1 year"');
-        $container->addDirective('ExpiresByType font/truetype "access plus 1 year"');
-        $container->addDirective('ExpiresByType font/opentype "access plus 1 year"');
-
-        $output = $container->toString(true);
-
-        $this->assertStringContainsString('ExpiresByType application/font-woff', $output);
-        $this->assertStringContainsString('ExpiresByType font/truetype', $output);
-    }
-
-    public function testExpiresModuleWithComments(): void
-    {
-        $container = new ExpiresModule();
-        $container->addDirective('# Enable expires headers');
-        $container->addDirective('ExpiresActive On');
-        $container->addDirective('# Set default expiration');
-        $container->addDirective('ExpiresDefault "access plus 1 week"');
-        $container->addDirective('# CSS and JS files');
-        $container->addDirective('ExpiresByType text/css "access plus 1 year"');
-
-        $output = $container->toString(true);
-
-        $this->assertStringContainsString('# Enable expires headers', $output);
-        $this->assertStringContainsString('# Set default expiration', $output);
-        $this->assertStringContainsString('# CSS and JS files', $output);
-    }
-
-    public function testExpiresModuleWithoutComments(): void
-    {
-        $container = new ExpiresModule();
-        $container->addDirective('# This is a comment');
-        $container->addDirective('ExpiresActive On');
-        $container->addDirective('# Another comment');
-        $container->addDirective('ExpiresDefault "access plus 1 month"');
-
-        $output = $container->toString(false);
-
-        $this->assertStringNotContainsString('# This is a comment', $output);
-        $this->assertStringNotContainsString('# Another comment', $output);
-        $this->assertStringContainsString('ExpiresActive On', $output);
-        $this->assertStringContainsString('ExpiresDefault "access plus 1 month"', $output);
-    }
-
-    public function testExpiresModuleWithIndentation(): void
-    {
-        $container = new ExpiresModule();
-        $container->addDirective('ExpiresActive On');
-        $container->addDirective('ExpiresDefault "access plus 1 month"');
-        $container->ensureApacheCompatibility();
-
-        $output = $container->toString(true, 1);
-        $lines = explode("\n", $output);
-
-        foreach ($lines as $line) {
-            if (empty(trim($line))) {
-                continue;
-            }
-            if (strpos($line, '<IfModule') !== false || strpos($line, '</IfModule>') !== false) {
-                $this->assertStringStartsWith('  ', $line);
-            } elseif (trim($line) !== '') {
-                $this->assertStringStartsWith('    ', $line);
-            }
-        }
-    }
-
-    public function testExpiresModuleEmpty(): void
-    {
-        $container = new ExpiresModule();
-        $container->ensureApacheCompatibility();
-
-        $output = $container->toString(true);
-
-        $this->assertStringContainsString('<IfModule mod_expires.c>', $output);
-        $this->assertStringContainsString('ExpiresActive On', $output);
-        $this->assertStringContainsString('</IfModule>', $output);
-    }
-
+    // Regression (1.0.9): bare ExpiresActive 500s on servers without mod_expires
     public function testExpiresModuleEmitsIfModuleWrapperByDefault(): void
     {
-        // Regression: ExpiresModule must default to ignoreTag=false (like DeflateModule)
-        // so the <IfModule mod_expires.c> wrapper is emitted WITHOUT an explicit
-        // ensureApacheCompatibility() call. Without it, bare ExpiresActive directives
-        // 500 on Apache servers lacking mod_expires.
-        $container = new ExpiresModule();
-        $container->addDirective('ExpiresActive On');
-
-        $output = $container->toString(true);
-
-        $this->assertStringContainsString('<IfModule mod_expires.c>', $output);
-        $this->assertStringContainsString('ExpiresActive On', $output);
-        $this->assertStringContainsString('</IfModule>', $output);
+        $this->assertSame("<IfModule mod_expires.c>\n  ExpiresActive On\n</IfModule>\n\n", (new ExpiresModule())->toString());
     }
 
-    public function testExpiresModuleFluentInterface(): void
+    #[DataProvider('processCases')]
+    public function testProcess(array $config, string $expected): void
     {
-        $container = new ExpiresModule();
-        $result = $container->addDirective('ExpiresActive On');
+        $module = new ExpiresModule();
+        $module->process($config);
 
-        $this->assertSame($container, $result);
-
-        $output = $container->toString(true);
-        $this->assertStringContainsString('ExpiresActive On', $output);
+        $this->assertSame($expected, $module->toString());
     }
 
-    public function testExpiresModuleWithArchiveFiles(): void
+    public static function processCases(): array
     {
-        $container = new ExpiresModule();
-        $container->addDirective('ExpiresActive On');
-        $container->addDirective('ExpiresByType application/zip "access plus 1 month"');
-        $container->addDirective('ExpiresByType application/x-gzip "access plus 1 month"');
-        $container->addDirective('ExpiresByType application/x-tar "access plus 1 month"');
+        $cssRule = '  ExpiresByType text/css "access plus 1 year"';
+        $pngRule = '  ExpiresByType image/png "access plus 6 months"';
+        $rules = [
+            ['mimeType' => 'text/css', 'expiry' => 'access plus 1 year'],
+            ['mimeType' => 'image/png', 'expiry' => 'access plus 6 months'],
+        ];
 
-        $output = $container->toString(true);
-
-        $this->assertStringContainsString('ExpiresByType application/zip', $output);
-        $this->assertStringContainsString('ExpiresByType application/x-gzip', $output);
+        return [
+            'defaults: common rules, then a 2-day default' => [['enabled' => true], self::module([
+                ...self::COMMON_RULES,
+                '  ExpiresDefault "access plus 2 days"',
+            ])],
+            'defaultExpiry comes first, common rules kept' => [['defaultExpiry' => 'access plus 1 week'], self::module([
+                '  ExpiresDefault "access plus 1 week"',
+                ...self::COMMON_RULES,
+            ])],
+            'cacheRules replace the common rules, no default added' => [['cacheRules' => $rules], self::module([
+                $cssRule,
+                $pngRule,
+            ])],
+            'defaultExpiry and cacheRules' => [['defaultExpiry' => 'access plus 1 day', 'cacheRules' => $rules], self::module([
+                '  ExpiresDefault "access plus 1 day"',
+                $cssRule,
+                $pngRule,
+            ])],
+            'common rules off and nothing else: ExpiresActive alone' => [['useCommonRules' => false], self::module([])],
+            'empty config adds nothing' => [[], self::module([])],
+        ];
     }
 
-    public function testExpiresModuleWithMediaFiles(): void
+    /**
+     * @param list<string> $lines indented lines between ExpiresActive On and the closing tag
+     */
+    private static function module(array $lines): string
     {
-        $container = new ExpiresModule();
-        $container->addDirective('ExpiresActive On');
-        $container->addDirective('ExpiresByType audio/mpeg "access plus 1 month"');
-        $container->addDirective('ExpiresByType video/mp4 "access plus 1 month"');
-        $container->addDirective('ExpiresByType video/webm "access plus 1 month"');
-
-        $output = $container->toString(true);
-
-        $this->assertStringContainsString('ExpiresByType audio/mpeg', $output);
-        $this->assertStringContainsString('ExpiresByType video/mp4', $output);
-        $this->assertStringContainsString('ExpiresByType video/webm', $output);
+        return implode("\n", ['<IfModule mod_expires.c>', '  ExpiresActive On', ...$lines, '</IfModule>', '', '']);
     }
 }

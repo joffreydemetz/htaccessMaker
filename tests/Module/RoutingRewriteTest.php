@@ -2,132 +2,81 @@
 
 declare(strict_types=1);
 
-namespace Tests\Container;
+namespace Tests\Module;
 
-use Tests\BaseContainerTest;
-use Tests\DirectiveContainerTests;
-use Tests\ContainerDefaultsTests;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\TestCase;
 use JDZ\HtaccessMaker\Module\RoutingRewrite;
 
-class RoutingRewriteTest extends BaseContainerTest
+class RoutingRewriteTest extends TestCase
 {
-    use DirectiveContainerTests;
-    use ContainerDefaultsTests;
-
-    protected string $containerClass = RoutingRewrite::class;
-
-    public function testRoutingRewriteWithCustomBaseUrl(): void
+    #[DataProvider('processCases')]
+    public function testProcess(array $config, string $expected): void
     {
-        $container = new RoutingRewrite();
-        $container->process(['baseUrl' => '/app/']);
+        $module = new RoutingRewrite();
+        $module->process($config);
 
-        $output = $container->toString();
-
-        $this->assertStringContainsString('RewriteBase /app/', $output);
+        $this->assertSame($expected, $module->toString());
     }
 
-    public function testRoutingRewriteWithoutTrailingSlash(): void
+    public function testAppendRulesWithoutRulesAddsNothing(): void
     {
-        $container = new RoutingRewrite();
-        $container->process(['checkTrailingSlash' => false]);
+        $module = new RoutingRewrite();
+        $module->appendRules([]);
 
-        $output = $container->toString();
-
-        // No trailing slash rewrite rule
-        $this->assertStringNotContainsString('RewriteRule (.*)$ %{REQUEST_URI}/', $output);
+        $this->assertSame("RewriteEngine On\n\n", $module->toString());
     }
 
-    public function testRoutingRewriteWithCustomController(): void
+    public static function processCases(): array
     {
-        $container = new RoutingRewrite();
-        $container->process(['defaultController' => 'app.php']);
-
-        $output = $container->toString();
-
-        $this->assertStringContainsString('app.php', $output);
-        $this->assertStringContainsString('RewriteCond %{REQUEST_URI} !^/app.php', $output);
-    }
-
-    public function testRoutingRewriteWithCustomRules(): void
-    {
-        $rules = [
-            ['from' => '^old-page$', 'to' => '/new-page', 'flags' => ['R=301', 'L']],
-            ['from' => '^legacy/(.*)$', 'to' => '/modern/$1', 'flags' => ['R=302', 'L']]
+        return [
+            'defaults, even without a config' => [[], implode("\n", [
+                'RewriteEngine On',
+                'RewriteBase /',
+                'RewriteCond %{REQUEST_URI} !(/$|\.)',
+                'RewriteRule (.*)$ %{REQUEST_URI}/ [R=301,L]',
+                '# Rewrite versioned files',
+                'RewriteRule ^(.+)_(\d+)\.(js|css|png|jpg|jpeg|gif|pdf)$ $1.$3 [L]',
+                'RewriteRule ^(.+)\.(js|css|png|jpg|jpeg|gif|pdf)\?(\d+)$ $1.$2 [L]',
+                '# Default controller',
+                'RewriteCond %{REQUEST_URI} !^/index.php',
+                'RewriteCond %{REQUEST_FILENAME} !-f',
+                'RewriteCond %{REQUEST_FILENAME} !-d',
+                'RewriteRule ^ index.php [L]',
+                '',
+                '',
+            ])],
+            'base, rules (raw, default flags, own flags), domain app, controller' => [[
+                'baseUrl' => '/app',
+                'checkTrailingSlash' => false,
+                'versionedFiles' => false,
+                'rules' => [
+                    'Redirect 410 /gone',
+                    ['from' => '^old$', 'to' => '/new'],
+                    ['from' => '^tmp$', 'to' => '/temp', 'flags' => ['R=302', 'L']],
+                ],
+                'domainApps' => [['domain' => 'api.example.com', 'file' => 'api.php']],
+                'defaultController' => 'app.php',
+            ], implode("\n", [
+                'RewriteEngine On',
+                'RewriteBase /app/',
+                'Redirect 410 /gone',
+                'RewriteRule ^old$ /new [R=301,L]',
+                'RewriteRule ^tmp$ /temp [R=302,L]',
+                '# App api.php controller',
+                'RewriteCond %{HTTP_HOST} =api.example.com',
+                'RewriteCond %{REQUEST_URI} !^/api.php',
+                'RewriteCond %{REQUEST_FILENAME} !-f',
+                'RewriteCond %{REQUEST_FILENAME} !-d',
+                'RewriteRule .* api.php [L]',
+                '# Default controller',
+                'RewriteCond %{REQUEST_URI} !^/app.php',
+                'RewriteCond %{REQUEST_FILENAME} !-f',
+                'RewriteCond %{REQUEST_FILENAME} !-d',
+                'RewriteRule ^ app.php [L]',
+                '',
+                '',
+            ])],
         ];
-
-        $container = new RoutingRewrite();
-        $container->process(['rules' => $rules]);
-
-        $output = $container->toString();
-
-        $this->assertStringContainsString('RewriteRule ^old-page$ /new-page [R=301,L]', $output);
-        $this->assertStringContainsString('RewriteRule ^legacy/(.*)$ /modern/$1 [R=302,L]', $output);
-    }
-
-    public function testRoutingRewriteWithoutVersionedFiles(): void
-    {
-        $container = new RoutingRewrite();
-        $container->process(['versionedFiles' => false]);
-
-        $output = $container->toString();
-
-        $this->assertStringNotContainsString('Rewrite versioned files', $output);
-    }
-
-    public function testRoutingRewriteWithDomainApps(): void
-    {
-        $domainApps = [
-            ['domain' => 'api.example.com', 'file' => 'api.php'],
-            ['domain' => 'admin.example.com', 'file' => 'admin.php']
-        ];
-
-        $container = new RoutingRewrite();
-        $container->process(['domainApps' => $domainApps]);
-
-        $output = $container->toString();
-
-        $this->assertStringContainsString('App api.php controller', $output);
-        $this->assertStringContainsString('RewriteCond %{HTTP_HOST} =api.example.com', $output);
-        $this->assertStringContainsString('App admin.php controller', $output);
-        $this->assertStringContainsString('RewriteCond %{HTTP_HOST} =admin.example.com', $output);
-    }
-
-    public function testRoutingRewriteTrailingSlashLogic(): void
-    {
-        $container = new RoutingRewrite();
-        $container->process([
-            'checkTrailingSlash' => true
-        ]);
-
-        $output = $container->toString();
-
-        $this->assertStringContainsString('RewriteCond %{REQUEST_URI} !(/$|\.)', $output);
-        $this->assertStringContainsString('RewriteRule (.*)$ %{REQUEST_URI}/ [R=301,L]', $output);
-    }
-
-    public function testRoutingRewriteDefaultControllerConditions(): void
-    {
-        $container = new RoutingRewrite();
-        $container->process([
-            'defaultController' => 'index.php'
-        ]);
-
-        $output = $container->toString();
-
-        $this->assertStringContainsString('RewriteCond %{REQUEST_URI} !^/index.php', $output);
-        $this->assertStringContainsString('RewriteCond %{REQUEST_FILENAME} !-f', $output);
-        $this->assertStringContainsString('RewriteCond %{REQUEST_FILENAME} !-d', $output);
-        $this->assertStringContainsString('RewriteRule ^ index.php [L]', $output);
-    }
-
-    public function testRoutingRewriteVersionedFiles(): void
-    {
-        $container = new RoutingRewrite();
-        $container->process(['versionedFiles' => true]);
-
-        $output = $container->toString();
-
-        $this->assertStringContainsString('Rewrite versioned files', $output);
-        $this->assertStringContainsString('RewriteRule ^(.+)_(\d+)\.(js|css|png|jpg|jpeg|gif|pdf)$ $1.$3 [L]', $output);
     }
 }

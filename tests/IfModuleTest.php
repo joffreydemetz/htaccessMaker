@@ -2,150 +2,90 @@
 
 declare(strict_types=1);
 
-namespace Tests\Container;
+namespace Tests;
 
+use Closure;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use JDZ\HtaccessMaker\IfModule;
-use JDZ\HtaccessMaker\Directive\ServerSignature;
+use JDZ\HtaccessMaker\Module\DeflateModule;
 
 class IfModuleTest extends TestCase
 {
-    public function testIfModuleAttributes(): void
+    /**
+     * @param Closure(): IfModule $build
+     */
+    #[DataProvider('tagCases')]
+    public function testTag(Closure $build, string $expected): void
     {
-        $container = new IfModule('mod_rewrite.c');
-        $container->addDirective('RewriteEngine On');
-        $container->ensureApacheCompatibility();
-
-        $output = $container->toString(true);
-
-        $this->assertStringContainsString('<IfModule mod_rewrite.c>', $output);
-        $this->assertStringContainsString('RewriteEngine On', $output);
-        $this->assertStringContainsString('</IfModule>', $output);
+        $this->assertSame($expected, $build()->toString());
     }
 
-    public function testIfModuleWithMultipleDirectives(): void
+    public static function tagCases(): array
     {
-        $container = new IfModule('mod_headers.c');
-        $container->addDirective('Header set X-Test "value1"');
-        $container->addDirective('Header set X-Another "value2"');
+        $wrapped = "<IfModule mod_headers.c>\n  Header set X-Test 1\n</IfModule>\n\n";
+        $bare = "Header set X-Test 1\n\n";
 
-        $output = $container->toString(true);
-
-        $this->assertStringContainsString('Header set X-Test "value1"', $output);
-        $this->assertStringContainsString('Header set X-Another "value2"', $output);
+        return [
+            'left out by default' => [static fn() => self::module(), $bare],
+            'withIgnoreTag(false) prints it' => [static fn() => self::module()->withIgnoreTag(false), $wrapped],
+            'withIgnoreTag() leaves it out again' => [static fn() => self::module()->withIgnoreTag(false)->withIgnoreTag(), $bare],
+            'ensureApacheCompatibility() prints it' => [static fn() => self::module()->ensureApacheCompatibility(), $wrapped],
+            'ensureApacheCompatibility() overrides withIgnoreTag()' => [static fn() => self::module()->withIgnoreTag()->ensureApacheCompatibility(), $wrapped],
+            'withIgnoreTag() after ensureApacheCompatibility() wins' => [static fn() => self::module()->ensureApacheCompatibility()->withIgnoreTag(), $bare],
+            'DeflateModule prints it by default' => [static fn() => new DeflateModule(), "<IfModule mod_deflate.c>\n  SetOutputFilter DEFLATE\n</IfModule>\n\n"],
+            'withIgnoreTag() unwraps DeflateModule' => [static fn() => (new DeflateModule())->withIgnoreTag(), "SetOutputFilter DEFLATE\n\n"],
+        ];
     }
 
-    public function testIfModuleWithDirectiveObjects(): void
+    public function testIndentation(): void
     {
-        $container = new IfModule('mod_mime.c');
-        $directive = new ServerSignature('Off');
-        $container->addDirective($directive);
+        $module = new IfModule('mod_test.c');
+        $module->addDirective('TestDirective On');
+        $module->ensureApacheCompatibility();
 
-        $container->ensureApacheCompatibility();
-        $output = $container->toString(true);
-
-        $this->assertStringContainsString('<IfModule mod_mime.c>', $output);
-        $this->assertStringContainsString('ServerSignature Off', $output);
-        $this->assertStringContainsString('</IfModule>', $output);
+        $this->assertSame("  <IfModule mod_test.c>\n    TestDirective On\n  </IfModule>\n\n", $module->toString(true, 1));
     }
 
-    public function testIfModuleEmpty(): void
+    public function testCommentsHiddenInsideTheTag(): void
     {
-        $container = new IfModule('mod_empty.c');
+        $module = new IfModule('mod_test.c');
+        $module->addDirective('# This comment should not appear');
+        $module->addDirective('Options -Indexes');
+        $module->ensureApacheCompatibility();
 
-        $output = $container->toString(true);
-
-        $this->assertStringNotContainsString('<IfModule mod_empty.c>', $output);
+        $this->assertSame("<IfModule mod_test.c>\n  Options -Indexes\n</IfModule>\n\n", $module->toString(false));
     }
 
-    public function testIfModuleIndentation(): void
+    public function testEmptyModuleRendersNoTag(): void
     {
-        $container = new IfModule('mod_test.c');
-        $container->addDirective('TestDirective On');
-        $container->ensureApacheCompatibility();
+        $module = new IfModule('mod_empty.c');
+        $module->ensureApacheCompatibility();
 
-        $output = $container->toString(true, 1);
-        $lines = explode("\n", $output);
-
-        // Check that the opening tag is indented
-        foreach ($lines as $line) {
-            if (strpos($line, '<IfModule mod_test.c>') !== false) {
-                $this->assertStringStartsWith('  ', $line);
-            }
-            if (strpos($line, 'TestDirective On') !== false) {
-                $this->assertStringStartsWith('    ', $line);
-            }
-            if (strpos($line, '</IfModule>') !== false) {
-                $this->assertStringStartsWith('  ', $line);
-            }
-        }
+        $this->assertSame('', $module->toString());
     }
 
-    public function testIfModuleWithoutComments(): void
+    public function testNestedModuleIsIndentedUnderItsParent(): void
     {
-        $container = new IfModule('mod_test.c');
-        $container->addDirective('# This comment should not appear');
-        $container->addDirective('Options -Indexes');
-        $container->ensureApacheCompatibility();
-
-        $output = $container->toString(false);
-
-        $this->assertStringContainsString('<IfModule mod_test.c>', $output);
-        $this->assertStringContainsString('Options -Indexes', $output);
-        $this->assertStringContainsString('</IfModule>', $output);
-        $this->assertStringNotContainsString('This comment should not appear', $output);
-    }
-
-    public function testIfModuleNesting(): void
-    {
-        $outer = new IfModule('mod_rewrite.c');
         $inner = new IfModule('mod_ssl.c');
-
         $inner->addDirective('SSLEngine On');
+
+        $outer = new IfModule('mod_rewrite.c');
         $outer->addDirective('RewriteEngine On');
         $outer->addDirective($inner);
-
         $outer->ensureApacheCompatibility();
-        $output = $outer->toString(true);
 
-        $this->assertStringContainsString('<IfModule mod_rewrite.c>', $output);
-        $this->assertStringContainsString('RewriteEngine On', $output);
-        $this->assertStringContainsString('<IfModule mod_ssl.c>', $output);
-        $this->assertStringContainsString('SSLEngine On', $output);
-        $this->assertStringContainsString('</IfModule>', $output);
-
-        // Count the occurrences of </IfModule> - should be 2
-        $this->assertEquals(2, substr_count($output, '</IfModule>'));
+        $this->assertSame(
+            "<IfModule mod_rewrite.c>\n  RewriteEngine On\n  <IfModule mod_ssl.c>\n    SSLEngine On\n  </IfModule>\n\n\n</IfModule>\n\n",
+            $outer->toString()
+        );
     }
 
-    public function testIfModuleDifferentModuleNames(): void
+    private static function module(): IfModule
     {
-        $modules = [
-            'mod_rewrite.c',
-            'mod_expires.c',
-            'mod_deflate.c',
-            'mod_ssl.c'
-        ];
+        $module = new IfModule('mod_headers.c');
+        $module->addDirective('Header set X-Test 1');
 
-        foreach ($modules as $module) {
-            $container = new IfModule($module);
-            $container->addDirective('TestDirective');
-            $container->ensureApacheCompatibility();
-
-            $output = $container->toString(true);
-            $this->assertStringContainsString("<IfModule $module>", $output);
-        }
-    }
-
-    public function testFluentInterface(): void
-    {
-        $container = new IfModule('mod_test.c');
-        $result = $container->addDirective('Test1')->addDirective('Test2');
-
-        $this->assertSame($container, $result);
-
-        $output = $container->toString(true);
-        $this->assertStringContainsString('Test1', $output);
-        $this->assertStringContainsString('Test2', $output);
+        return $module;
     }
 }

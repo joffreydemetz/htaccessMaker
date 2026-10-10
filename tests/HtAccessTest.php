@@ -4,44 +4,33 @@ declare(strict_types=1);
 
 namespace Tests;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use JDZ\HtaccessMaker\Container;
+use JDZ\HtaccessMaker\Directive;
+use JDZ\HtaccessMaker\EmptyLine;
 use JDZ\HtaccessMaker\HtAccess;
+use JDZ\HtaccessMaker\IfModule;
+use JDZ\HtaccessMaker\Container\AntiXSS;
 use JDZ\HtaccessMaker\Directive\Comment;
 use JDZ\HtaccessMaker\Directive\ServerSignature;
-use JDZ\HtaccessMaker\Directive\DirectoryIndex;
-use JDZ\HtaccessMaker\Container\AntiXSS;
 use JDZ\HtaccessMaker\Module\BasicAuthModule;
-use JDZ\HtaccessMaker\IfModule;
 use JDZ\HtaccessMaker\Module\DeflateModule;
 
 class HtAccessTest extends TestCase
 {
+    public function testToStringWithEmptyDirectives(): void
+    {
+        $this->assertSame('', (new HtAccess())->toString());
+    }
+
     public function testWithCommentsEnabledByDefault(): void
     {
-        // Comments should be enabled by default
         $htaccess = new HtAccess();
         $htaccess->addDirective(new Comment('Default comment behavior'));
         $htaccess->addDirective('# String comment');
 
-        $output = $htaccess->toString();
-
-        $this->assertStringContainsString('# Default comment behavior', $output);
-        $this->assertStringContainsString('# String comment', $output);
-    }
-
-    public function testWithCommentsEnabled(): void
-    {
-        $htaccess = new HtAccess();
-        $htaccess->withComments(true);
-        $htaccess->addDirective(new Comment('Test comment'));
-        $htaccess->addDirective('# String comment');
-        $htaccess->addDirective(new ServerSignature('Off'));
-
-        $output = $htaccess->toString();
-
-        $this->assertStringContainsString('# Test comment', $output);
-        $this->assertStringContainsString('# String comment', $output);
-        $this->assertStringContainsString('ServerSignature Off', $output);
+        $this->assertSame("# Default comment behavior\n# String comment\n", $htaccess->toString());
     }
 
     public function testWithoutComments(): void
@@ -52,73 +41,44 @@ class HtAccessTest extends TestCase
         $htaccess->addDirective('# This should also not appear');
         $htaccess->addDirective(new ServerSignature('Off'));
 
-        $output = $htaccess->toString();
-
-        $this->assertStringNotContainsString('This should not appear', $output);
-        $this->assertStringNotContainsString('This should also not appear', $output);
-        $this->assertStringContainsString('ServerSignature Off', $output);
+        $this->assertSame("ServerSignature Off\n", $htaccess->toString());
     }
 
-    // HtAccess       by default ignores Apache compatibility
-    // IfModule       by default ignores Apache compatibility
-    // DeflateModule  by default forces  Apache compatibility
+    public function testSettingsApplyWhenRendering(): void
+    {
+        $htaccess = (new HtAccess())
+            ->withComments(false)
+            ->addDirective('Options -Indexes')
+            ->withComments(true)
+            ->addDirective(new Comment('Now with comments'));
+
+        $this->assertSame("Options -Indexes\n# Now with comments\n", $htaccess->toString());
+    }
+
+    // HtAccess and IfModule leave the <IfModule> tag out by default; DeflateModule always prints it
     public function testWithApacheCompatibilityDisabledByDefault(): void
     {
         $htaccess = new HtAccess();
+        $htaccess->addDirective(self::headersModule());
+        $htaccess->addDirective(new DeflateModule());
 
-        $container = new IfModule('mod_test.c');
-        $container->addDirective('IfModule mod_test.c should not be visible');
-        $htaccess->addDirective($container);
-
-        $container = new DeflateModule();
-        $container->addDirective('IfModule mod_deflate.c should be visible');
-        $htaccess->addDirective($container);
-
-        $output = $htaccess->toString();
-
-        $this->assertStringNotContainsString('<IfModule mod_test.c>', $output);
-        $this->assertStringContainsString('<IfModule mod_deflate.c>', $output);
-        $this->assertStringContainsString('</IfModule>', $output);
-    }
-
-    public function testWithApacheCompatibilityDisabled(): void
-    {
-        $htaccess = new HtAccess();
-        $htaccess->withApacheCompatibility(false);
-
-        $container = new IfModule('mod_test.c');
-        $container->addDirective('IfModule mod_test.c should not be visible');
-        $htaccess->addDirective($container);
-
-        $container = new DeflateModule();
-        $container->addDirective('IfModule mod_deflate.c should be visible');
-        $htaccess->addDirective($container);
-
-        $output = $htaccess->toString();
-
-        $this->assertStringNotContainsString('<IfModule mod_test.c>', $output);
-        $this->assertStringContainsString('<IfModule mod_deflate.c>', $output);
-        $this->assertStringContainsString('</IfModule>', $output);
+        $this->assertSame(
+            "Header set X-Test 1\n\n<IfModule mod_deflate.c>\n  SetOutputFilter DEFLATE\n</IfModule>\n\n",
+            $htaccess->toString()
+        );
     }
 
     public function testWithApacheCompatibilityEnabled(): void
     {
         $htaccess = new HtAccess();
         $htaccess->withApacheCompatibility(true);
+        $htaccess->addDirective(self::headersModule());
+        $htaccess->addDirective(new DeflateModule());
 
-        $container = new IfModule('mod_test.c');
-        $container->addDirective('IfModule mod_test.c should not be visible');
-        $htaccess->addDirective($container);
-
-        $container = new DeflateModule();
-        $container->addDirective('IfModule mod_deflate.c should be visible');
-        $htaccess->addDirective($container);
-
-        $output = $htaccess->toString();
-
-        $this->assertStringContainsString('<IfModule mod_test.c>', $output);
-        $this->assertStringContainsString('<IfModule mod_deflate.c>', $output);
-        $this->assertStringContainsString('</IfModule>', $output);
+        $this->assertSame(
+            "<IfModule mod_headers.c>\n  Header set X-Test 1\n</IfModule>\n\n<IfModule mod_deflate.c>\n  SetOutputFilter DEFLATE\n</IfModule>\n\n",
+            $htaccess->toString()
+        );
     }
 
     public function testNoMoreThanTwoConsecutiveNewlines(): void
@@ -127,34 +87,7 @@ class HtAccessTest extends TestCase
         $htaccess->addDirective("Line1\n\n\n\n\nLine2");
         $htaccess->addDirective(new Comment('Comment with spacing'));
 
-        $output = $htaccess->toString();
-
-        // Should not contain more than 2 consecutive newlines
-        $this->assertStringNotContainsString("\n\n\n", $output);
-    }
-
-    public function testExcessiveNewlinesCleanup(): void
-    {
-        $htaccess = new HtAccess();
-        $htaccess->addDirective("Options -Indexes\n\n\n\n\nServerSignature Off");
-
-        $output = $htaccess->toString();
-
-        // Test that excessive newlines are cleaned up
-        $lines = explode("\n", $output);
-        $consecutiveEmpty = 0;
-        $maxConsecutiveEmpty = 0;
-
-        foreach ($lines as $line) {
-            if (trim($line) === '') {
-                $consecutiveEmpty++;
-                $maxConsecutiveEmpty = max($maxConsecutiveEmpty, $consecutiveEmpty);
-            } else {
-                $consecutiveEmpty = 0;
-            }
-        }
-
-        $this->assertLessThanOrEqual(2, $maxConsecutiveEmpty);
+        $this->assertSame("Line1\n\nLine2\n# Comment with spacing\n", $htaccess->toString());
     }
 
     public function testNoEmptyDirectivesRendered(): void
@@ -166,205 +99,115 @@ class HtAccessTest extends TestCase
         $htaccess->addDirective(new Comment(''));
         $htaccess->addDirective('ServerSignature Off');
 
-        $output = $htaccess->toString();
-
-        // Should only contain the non-empty directive
-        $nonEmptyLines = array_filter(explode("\n", $output), fn($line) => trim($line) !== '');
-        $this->assertGreaterThan(0, count($nonEmptyLines));
-        $this->assertStringContainsString('ServerSignature Off', $output);
+        $this->assertSame("ServerSignature Off\n", $htaccess->toString());
     }
 
-    public function testSkipEmptyStringDirectives(): void
+    public function testEmptyLineRendersABlankLine(): void
     {
         $htaccess = new HtAccess();
         $htaccess->addDirective('ServerSignature Off');
-        $htaccess->addDirective('');
+        $htaccess->addDirective(new EmptyLine());
         $htaccess->addDirective('Options -Indexes');
+        $htaccess->addDirective(new EmptyLine());
+        $htaccess->addDirective(new EmptyLine());
+        $htaccess->addDirective(new EmptyLine());
+        $htaccess->addDirective('DirectoryIndex index.php');
 
-        $output = $htaccess->toString();
-
-        $this->assertStringContainsString('ServerSignature Off', $output);
-        $this->assertStringContainsString('Options -Indexes', $output);
-
-        // Should not have extra empty lines from empty directive
-        $this->assertStringNotContainsString("Off\n\nOptions", $output);
-    }
-
-    public function testStringifyDirective(): void
-    {
-        $directive = new ServerSignature('Off');
-        $result = HtAccess::stringifyDirective($directive, true, true, 0);
-
-        $this->assertEquals('ServerSignature Off', $result);
-    }
-
-    public function testStringifyDirectiveWithComments(): void
-    {
-        $comment = new Comment('Test comment');
-        $result = HtAccess::stringifyDirective($comment, true, true, 0);
-
-        $this->assertEquals('# Test comment', $result);
-    }
-
-    public function testStringifyDirectiveWithoutComments(): void
-    {
-        $comment = new Comment('Test comment');
-        $result = HtAccess::stringifyDirective($comment, false, true, 0);
-
-        $this->assertEquals('', $result);
-    }
-
-    public function testStringifyDirectiveWithStringDirective(): void
-    {
-        $result = HtAccess::stringifyDirective('ServerSignature Off');
-        $this->assertEquals('ServerSignature Off', $result);
-    }
-
-    public function testStringifyDirectiveWithStringComment(): void
-    {
-        $result = HtAccess::stringifyDirective('# Test comment', true);
-        $this->assertEquals('# Test comment', $result);
-    }
-
-    public function testStringifyDirectiveWithStringCommentDisabled(): void
-    {
-        $result = HtAccess::stringifyDirective('# Test comment', false);
-        $this->assertEquals('', $result);
-    }
-
-    public function testFluentInterface(): void
-    {
-        $htaccess = new HtAccess();
-        $result = $htaccess
-            ->withComments(true)
-            ->withApacheCompatibility(true)
-            ->addDirective('ServerSignature Off')
-            ->addDirective(new Comment('Test fluent interface'));
-
-        $this->assertSame($htaccess, $result);
-        $this->assertInstanceOf(HtAccess::class, $result);
-
-        $output = $result->toString();
-        $this->assertStringContainsString('ServerSignature Off', $output);
-        $this->assertStringContainsString('# Test fluent interface', $output);
-    }
-
-    public function testFluentInterfaceChaining(): void
-    {
-        $htaccess = new HtAccess();
-        $output = $htaccess
-            ->withComments(true)
-            ->withApacheCompatibility(false)
-            ->addDirective(new ServerSignature('Off'))
-            ->addDirective(new DirectoryIndex('index.php'))
-            ->toString();
-
-        $this->assertStringContainsString('ServerSignature Off', $output);
-        $this->assertStringContainsString('DirectoryIndex index.php', $output);
-    }
-
-    public function testFluentInterfaceMethodReturn(): void
-    {
-        $htaccess = new HtAccess();
-        $withComments = $htaccess->withComments(true);
-        $withCompatibility = $htaccess->withApacheCompatibility(true);
-        $withDirective = $htaccess->addDirective('Test');
-
-        $this->assertSame($htaccess, $withComments);
-        $this->assertSame($htaccess, $withCompatibility);
-        $this->assertSame($htaccess, $withDirective);
-    }
-
-    public function testFluentInterfaceComplexChaining(): void
-    {
-        $htaccess = new HtAccess();
-        $result = $htaccess
-            ->withComments(false)
-            ->addDirective('Options -Indexes')
-            ->withComments(true)
-            ->addDirective(new Comment('Now with comments'))
-            ->withApacheCompatibility(true);
-
-        $this->assertSame($htaccess, $result);
-
-        $output = $result->toString();
-        $this->assertStringContainsString('Options -Indexes', $output);
-        $this->assertStringContainsString('# Now with comments', $output);
+        $this->assertSame("ServerSignature Off\n\nOptions -Indexes\n\nDirectoryIndex index.php\n", $htaccess->toString());
     }
 
     public function testComplexConfiguration(): void
     {
-        $htaccess = new HtAccess();
-        $htaccess
-            ->withComments(true)
-            ->withApacheCompatibility(true)
-            ->addDirective(new Comment('Security Configuration'))
-            ->addDirective(new ServerSignature('Off'));
-
-        $container = new AntiXSS();
-        $container->process([
-            'enabled' => true,
+        $antiXss = new AntiXSS();
+        $antiXss->process([
             'xssProtection' => '1; mode=block',
             'frameOptions' => 'SAMEORIGIN',
-            'contentTypeOptions' => 'nosniff'
+            'contentTypeOptions' => 'nosniff',
         ]);
 
-        $htaccess->addDirective($container);
+        $htaccess = (new HtAccess())
+            ->withApacheCompatibility(true)
+            ->addDirective(new Comment('Security Configuration'))
+            ->addDirective(new ServerSignature('Off'))
+            ->addDirective($antiXss);
 
-        $output = $htaccess->toString();
-
-        $this->assertStringContainsString('# Security Configuration', $output);
-        $this->assertStringContainsString('ServerSignature Off', $output);
-        $this->assertStringContainsString('X-XSS-Protection', $output);
-        $this->assertStringContainsString('X-Frame-Options', $output);
-        $this->assertStringContainsString('X-Content-Type-Options', $output);
+        $this->assertSame(
+            "# Security Configuration\n"
+                . "ServerSignature Off\n"
+                . "Header set X-XSS-Protection \"1; mode=block\"\n"
+                . "Header always append X-Frame-Options SAMEORIGIN\n"
+                . "Header set X-Content-Type-Options nosniff\n"
+                . "Header set Referrer-Policy \"strict-origin-when-cross-origin\"\n\n",
+            $htaccess->toString()
+        );
     }
 
     public function testMixedDirectiveTypes(): void
     {
-        $htaccess = new HtAccess();
-        $htaccess
-            ->addDirective('Options -Indexes')  // String directive
-            ->addDirective(new ServerSignature('Off'))  // Directive object
-            ->addDirective(new Comment('Mixed types test'));  // Comment
-
-        $container = new BasicAuthModule();
-        $container->process([
-            'realm' => 'Protected Area',
-            'userFile' => '.htpasswd'
+        $auth = new BasicAuthModule();
+        $auth->process([
+            'authName' => 'Members',
+            'authUserFile' => '/var/www/.htpasswd',
+            'defaultPaths' => false,
         ]);
-        $htaccess->addDirective($container);  // Container
 
-        $output = $htaccess->toString();
+        $htaccess = (new HtAccess())
+            ->addDirective('Options -Indexes')
+            ->addDirective(new ServerSignature('Off'))
+            ->addDirective(new Comment('Mixed types test'))
+            ->addDirective($auth);
 
-        $this->assertStringContainsString('Options -Indexes', $output);
-        $this->assertStringContainsString('ServerSignature Off', $output);
-        $this->assertStringContainsString('# Mixed types test', $output);
-        $this->assertStringContainsString('AuthType Basic', $output);
+        $this->assertSame(
+            "Options -Indexes\n"
+                . "ServerSignature Off\n"
+                . "# Mixed types test\n"
+                . "# Basic Authentication\n"
+                . "AuthName \"Members\"\n"
+                . "AuthType Basic\n"
+                . "AuthUserFile /var/www/.htpasswd\n"
+                . "Require valid-user\n"
+                . "Order deny,allow\n"
+                . "Deny from all\n"
+                . "Allow from env=ForceAllow\n"
+                . "Satisfy Any\n\n",
+            $htaccess->toString()
+        );
     }
 
-    public function testToStringWithEmptyDirectives(): void
+    #[DataProvider('stringifyCases')]
+    public function testStringifyDirective(Directive|Container|string $directive, bool $showComments, bool $ensureApacheCompatibility, int $indent, string $expected): void
     {
-        $htaccess = new HtAccess();
-        $output = $htaccess->toString();
-        $this->assertEquals('', $output);
+        $this->assertSame($expected, HtAccess::stringifyDirective($directive, $showComments, $ensureApacheCompatibility, $indent));
     }
 
-    public function testMultipleDirectivesOrdering(): void
+    public static function stringifyCases(): array
     {
-        $htaccess = new HtAccess();
-        $htaccess
-            ->addDirective('ServerSignature Off')
-            ->addDirective('DirectoryIndex index.php')
-            ->addDirective(new Comment('Security settings'));
+        return [
+            'directive' => [new ServerSignature('Off'), true, true, 0, 'ServerSignature Off'],
+            'directive, indented' => [new ServerSignature('Off'), true, true, 2, '    ServerSignature Off'],
+            'Comment shown' => [new Comment('Test comment'), true, true, 0, '# Test comment'],
+            'Comment hidden' => [new Comment('Test comment'), false, true, 0, ''],
+            'raw string' => ['ServerSignature Off', true, true, 0, 'ServerSignature Off'],
+            'raw string comment shown' => ['# Test comment', true, true, 0, '# Test comment'],
+            'raw string comment hidden' => ['  # Test comment', false, true, 0, ''],
+            'module wrapped' => [self::headersModule(), true, true, 0, "<IfModule mod_headers.c>\n  Header set X-Test 1\n</IfModule>\n\n"],
+            'module bare' => [self::headersModule(), true, false, 0, "Header set X-Test 1\n\n"],
+        ];
+    }
 
-        $output = $htaccess->toString();
+    public function testStringifyDirectiveWrapsModulesByDefault(): void
+    {
+        $this->assertSame(
+            "<IfModule mod_headers.c>\n  Header set X-Test 1\n</IfModule>\n\n",
+            HtAccess::stringifyDirective(self::headersModule())
+        );
+    }
 
-        $lines = explode("\n", $output);
-        $nonEmptyLines = array_filter($lines, fn($line) => trim($line) !== '');
+    private static function headersModule(): IfModule
+    {
+        $module = new IfModule('mod_headers.c');
+        $module->addDirective('Header set X-Test 1');
 
-        $this->assertStringContainsString('ServerSignature Off', $nonEmptyLines[0] ?? '');
-        $this->assertStringContainsString('DirectoryIndex index.php', $nonEmptyLines[1] ?? '');
-        $this->assertStringContainsString('# Security settings', $nonEmptyLines[2] ?? '');
+        return $module;
     }
 }

@@ -4,32 +4,27 @@ declare(strict_types=1);
 
 namespace Tests\Directive;
 
-use Tests\DirectiveTest;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\TestCase;
 use JDZ\HtaccessMaker\Directive\RewriteBase;
 
-class RewriteBaseTest extends DirectiveTest
+class RewriteBaseTest extends TestCase
 {
-    public function testRewriteBaseWithRoot(): void
+    #[DataProvider('paths')]
+    public function testToString(string $urlPath, string $expected): void
     {
-        $directive = new RewriteBase('/');
-        $this->assertStringContainsString('RewriteBase /', $directive->toString());
+        $directive = new RewriteBase($urlPath);
+
+        $this->assertSame($expected, $directive->toString());
     }
 
-    public function testRewriteBaseWithSubdirectory(): void
+    public static function paths(): array
     {
-        $directive = new RewriteBase('/app/');
-        $this->assertStringContainsString('RewriteBase /app/', $directive->toString());
-    }
-
-    public function testRewriteBaseWithoutTrailingSlash(): void
-    {
-        $directive = new RewriteBase('/api');
-        $this->assertStringContainsString('RewriteBase /api/', $directive->toString());
-    }
-
-    public function testRewriteBaseWithEmptyPath(): void
-    {
-        $directive = new RewriteBase('');
-        $this->assertStringContainsString('RewriteBase /', $directive->toString());
+        return [
+            'root' => ['/', 'RewriteBase /'],
+            'subdirectory with trailing slash' => ['/app/', 'RewriteBase /app/'],
+            'trailing slash added' => ['/api', 'RewriteBase /api/'],
+            'empty becomes root' => ['', 'RewriteBase /'],
+        ];
     }
 }

@@ -2,197 +2,64 @@
 
 declare(strict_types=1);
 
-namespace Tests\Container;
+namespace Tests\Module;
 
-use Tests\BaseContainerTest;
-use Tests\DirectiveContainerTests;
-use Tests\ContainerDefaultsTests;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\TestCase;
 use JDZ\HtaccessMaker\Module\DeflateModule;
 
-class DeflateModuleTest extends BaseContainerTest
+class DeflateModuleTest extends TestCase
 {
-    use DirectiveContainerTests;
-    use ContainerDefaultsTests;
-
-    protected string $containerClass = DeflateModule::class;
-
-    public function testDeflateModuleWithDefaults(): void
+    public function testWrappedInItsIfModuleByDefault(): void
     {
-        $container = new DeflateModule();
-        $container->process(['enabled' => true]);
-
-        $output = $container->toString();
-
-        $this->assertStringContainsString('AddOutputFilterByType DEFLATE text/html', $output);
-        $this->assertStringContainsString('BrowserMatch', $output);
+        $this->assertSame("<IfModule mod_deflate.c>\n  SetOutputFilter DEFLATE\n</IfModule>\n\n", (new DeflateModule())->toString());
     }
 
-    public function testDeflateModuleWithMimeTypes(): void
+    #[DataProvider('processCases')]
+    public function testProcess(array $config, string $expected): void
     {
-        $container = new DeflateModule();
-        $container->process([
-            'mimeTypes' => [
-                'text/plain',
-                'text/html',
-                'application/javascript',
+        $module = new DeflateModule();
+        $module->process($config);
+
+        $this->assertSame($expected, $module->toString());
+    }
+
+    public static function processCases(): array
+    {
+        return [
+            'defaults' => [['enabled' => true], implode("\n", [
+                '<IfModule mod_deflate.c>',
+                '  SetOutputFilter DEFLATE',
+                '  AddOutputFilterByType DEFLATE text/html text/css application/javascript application/json',
+                '  # For incompatible browsers',
+                '  BrowserMatch ^Mozilla/4 gzip-only-text/html',
+                '  BrowserMatch ^Mozilla/4\.0[678] no-gzip',
+                '  BrowserMatch \bMSIE !no-gzip !gzip-only-text/html',
+                '  BrowserMatch \bMSI[E] !no-gzip !gzip-only-text/html',
+                '  Header append Vary "Accept-Encoding" env=!dont-vary',
+                '</IfModule>',
+                '',
+                '',
+            ])],
+            'Vary header alone: env=!dont-vary, no bogus vary token (1.0.9)' => [
+                ['mimeTypes' => [], 'browserCompatibility' => false],
+                "<IfModule mod_deflate.c>\n  SetOutputFilter DEFLATE\n  Header append Vary \"Accept-Encoding\" env=!dont-vary\n</IfModule>\n\n",
             ],
-        ]);
-
-        $output = $container->toString(true);
-
-        $this->assertStringContainsString('AddOutputFilterByType DEFLATE text/plain text/html application/javascript', $output);
-    }
-
-    public function testDeflateModuleWithExclusions(): void
-    {
-        $container = new DeflateModule();
-        $container->process([
-            'fileExclusions' => ['test.ico'],
-        ]);
-
-        $output = $container->toString(true);
-
-        $this->assertStringContainsString('SetEnvIfNoCase Request_URI', $output);
-        $this->assertStringContainsString('no-gzip', $output);
-    }
-
-    public function testDeflateModuleWithCompressionLevel(): void
-    {
-        $container = new DeflateModule();
-        $container->addDirective('DeflateCompressionLevel 9');
-        $container->addDirective('SetOutputFilter DEFLATE');
-
-        $output = $container->toString(true);
-
-        $this->assertStringContainsString('DeflateCompressionLevel 9', $output);
-        $this->assertStringContainsString('SetOutputFilter DEFLATE', $output);
-    }
-
-    public function testDeflateModuleWithMemoryLevel(): void
-    {
-        $container = new DeflateModule();
-        $container->addDirective('DeflateMemLevel 9');
-        $container->addDirective('DeflateWindowSize 15');
-        $container->addDirective('SetOutputFilter DEFLATE');
-
-        $output = $container->toString(true);
-
-        $this->assertStringContainsString('DeflateMemLevel 9', $output);
-        $this->assertStringContainsString('DeflateWindowSize 15', $output);
-    }
-
-    public function testDeflateModuleWithBrowserCompatibility(): void
-    {
-        $container = new DeflateModule();
-        $container->addDirective('SetOutputFilter DEFLATE');
-        $container->addDirective('BrowserMatch ^Mozilla/4 gzip-only-text/html');
-        $container->addDirective('BrowserMatch ^Mozilla/4\.0[678] no-gzip');
-        $container->addDirective('BrowserMatch \\bMSIE !no-gzip !gzip-only-text/html');
-
-        $output = $container->toString(true);
-
-        $this->assertStringContainsString('BrowserMatch ^Mozilla/4 gzip-only-text/html', $output);
-        $this->assertStringContainsString('BrowserMatch ^Mozilla/4\.0[678] no-gzip', $output);
-        $this->assertStringContainsString('BrowserMatch \\bMSIE !no-gzip !gzip-only-text/html', $output);
-    }
-
-    public function testDeflateModuleWithComments(): void
-    {
-        $container = new DeflateModule();
-        $container->addDirective('# Enable compression for text files');
-        $container->addDirective('SetOutputFilter DEFLATE');
-        $container->addDirective('# Exclude already compressed files');
-        $container->addDirective('SetEnvIfNoCase Request_URI \\.(?:gif|jpe?g|png)$ no-gzip');
-
-        $output = $container->toString(true);
-
-        $this->assertStringContainsString('# Enable compression for text files', $output);
-        $this->assertStringContainsString('# Exclude already compressed files', $output);
-    }
-
-    public function testDeflateModuleWithoutComments(): void
-    {
-        $container = new DeflateModule();
-        $container->addDirective('# This is a comment');
-        $container->addDirective('SetOutputFilter DEFLATE');
-        $container->addDirective('# Another comment');
-
-        $output = $container->toString(false);
-
-        $this->assertStringNotContainsString('# This is a comment', $output);
-        $this->assertStringNotContainsString('# Another comment', $output);
-        $this->assertStringContainsString('SetOutputFilter DEFLATE', $output);
-    }
-
-    public function testDeflateModuleWithIndentation(): void
-    {
-        $container = new DeflateModule();
-        $container->addDirective('DeflateCompressionLevel 6');
-
-        $output = $container->toString(true, 1);
-        $lines = explode("\n", $output);
-
-        foreach ($lines as $line) {
-            if (empty(trim($line))) {
-                continue;
-            }
-            if (strpos($line, '<IfModule') !== false || strpos($line, '</IfModule>') !== false) {
-                $this->assertStringStartsWith('  ', $line);
-            } elseif (trim($line) !== '') {
-                $this->assertStringStartsWith('    ', $line);
-            }
-        }
-    }
-
-    public function testDeflateModuleEmpty(): void
-    {
-        $container = new DeflateModule();
-
-        $output = $container->toString(true);
-
-        // DeflateModule has ignoreTag=false, so IfModule always renders
-        $this->assertStringContainsString('<IfModule mod_deflate.c>', $output);
-        $this->assertStringContainsString('SetOutputFilter DEFLATE', $output);
-        $this->assertStringContainsString('</IfModule>', $output);
-    }
-
-    public function testDeflateModuleFluentInterface(): void
-    {
-        $container = new DeflateModule();
-        $result = $container->addDirective('SetOutputFilter DEFLATE');
-
-        $this->assertSame($container, $result);
-
-        $output = $container->toString(true);
-        $this->assertStringContainsString('SetOutputFilter DEFLATE', $output);
-    }
-
-    public function testDeflateModuleVaryHeaderIsApacheValid(): void
-    {
-        // Regression: addVaryHeader() previously emitted the malformed
-        // `Header append vary Vary "Accept-Encoding" !dont-vary` which 500'd
-        // Apache 2.4. Correct form drops the bogus `vary` token and wraps the
-        // condition as env=.
-        $container = new DeflateModule();
-        $container->process(['varyHeader' => true]);
-
-        $output = $container->toString(true);
-
-        $this->assertStringContainsString('Header append Vary "Accept-Encoding" env=!dont-vary', $output);
-        $this->assertStringNotContainsString('append vary', $output);
-    }
-
-    public function testDeflateModuleWithFilterProvider(): void
-    {
-        $container = new DeflateModule();
-        $container->addDirective('FilterDeclare COMPRESS');
-        $container->addDirective('FilterProvider COMPRESS DEFLATE resp=Content-Type $text/');
-        $container->addDirective('FilterChain COMPRESS');
-
-        $output = $container->toString(true);
-
-        $this->assertStringContainsString('FilterDeclare COMPRESS', $output);
-        $this->assertStringContainsString('FilterProvider COMPRESS DEFLATE', $output);
-        $this->assertStringContainsString('FilterChain COMPRESS', $output);
+            'custom types, excluded files quoted for the regex' => [
+                ['mimeTypes' => ['text/plain', 'image/svg+xml'], 'browserCompatibility' => false, 'fileExclusions' => ['/robots.txt'], 'varyHeader' => false],
+                implode("\n", [
+                    '<IfModule mod_deflate.c>',
+                    '  SetOutputFilter DEFLATE',
+                    '  AddOutputFilterByType DEFLATE text/plain image/svg+xml',
+                    '  # Do not compress these files',
+                    '  SetEnvIfNoCase Request_URI \.(?:gif|jpe?g|png|ico|zip|gz|pdf)$ no-gzip',
+                    '  SetEnvIfNoCase Request_URI ^\/robots\.txt$ no-gzip dont-vary',
+                    '</IfModule>',
+                    '',
+                    '',
+                ]),
+            ],
+            'empty config adds nothing' => [[], "<IfModule mod_deflate.c>\n  SetOutputFilter DEFLATE\n</IfModule>\n\n"],
+        ];
     }
 }

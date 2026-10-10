@@ -12,6 +12,7 @@ class ServerSignatureTest extends TestCase
     public function testServerSignatureOff(): void
     {
         $directive = new ServerSignature('Off');
-        $this->assertEquals('ServerSignature Off', $directive->toString());
+
+        $this->assertSame('ServerSignature Off', $directive->toString());
     }
 }

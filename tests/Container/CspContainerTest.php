@@ -4,99 +4,49 @@ declare(strict_types=1);
 
 namespace Tests\Container;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\BaseContainerTest;
 use Tests\EmptyContainerTests;
-use Tests\DirectiveContainerTests;
-use Tests\ContainerDefaultsTests;
 use JDZ\HtaccessMaker\Container\CspContainer;
 
 class CspContainerTest extends BaseContainerTest
 {
     use EmptyContainerTests;
-    use DirectiveContainerTests;
-    use ContainerDefaultsTests;
 
     protected string $containerClass = CspContainer::class;
 
-    public function testCspContainerWithBasicConfig(): void
+    #[DataProvider('processCases')]
+    public function testProcess(array $config, string $expected): void
     {
         $container = new CspContainer();
-        $container->process([
-            'enabled' => true,
-            'useXContentSecurityPolicy' => false,
-            'csp' => [
-                'default-src' => "'self'",
-                'script-src' => "'self' 'unsafe-inline'",
-                'style-src' => "'self' 'unsafe-inline'"
-            ]
-        ]);
+        $container->process($config);
 
-        $output = $container->toString();
-
-        $this->assertStringContainsString('Content-Security-Policy', $output);
-        $this->assertStringContainsString("default-src 'self'", $output);
+        $this->assertSame($expected, $container->toString());
     }
 
-    public function testCspContainerWithXContentSecurityPolicy(): void
+    public static function processCases(): array
     {
-        $container = new CspContainer();
-        $container->process([
-            'enabled' => true,
-            'useXContentSecurityPolicy' => true,
-            'csp' => [
-                'default-src' => "'self'",
-                'script-src' => "'self'"
-            ]
-        ]);
-
-        $output = $container->toString();
-
-        $this->assertStringContainsString('X-Content-Security-Policy', $output);
-        $this->assertStringContainsString("default-src 'self'", $output);
-    }
-
-    public function testCspContainerWithComplexPolicy(): void
-    {
-        $container = new CspContainer();
-        $container->process([
-            'enabled' => true,
-            'useXContentSecurityPolicy' => false,
-            'csp' => [
-                'default-src' => "'self'",
-                'script-src' => "'self' 'unsafe-inline' https://cdn.example.com",
-                'style-src' => "'self' 'unsafe-inline' https://fonts.googleapis.com",
-                'img-src' => "'self' data: https:",
-                'font-src' => "'self' https://fonts.gstatic.com",
-                'connect-src' => "'self' https://api.example.com",
-                'frame-ancestors' => "'none'"
-            ]
-        ]);
-
-        $output = $container->toString();
-
-        $this->assertStringContainsString('script-src', $output);
-        $this->assertStringContainsString('style-src', $output);
-        $this->assertStringContainsString('img-src', $output);
-        $this->assertStringContainsString('font-src', $output);
-        $this->assertStringContainsString('connect-src', $output);
-        $this->assertStringContainsString('frame-ancestors', $output);
-    }
-
-    public function testCspContainerWithReportUri(): void
-    {
-        $container = new CspContainer();
-        $container->process([
-            'enabled' => true,
-            'useXContentSecurityPolicy' => false,
-            'csp' => [
-                'default-src' => "'self'",
-                'report-uri' => '/csp-report-endpoint'
-            ]
-        ]);
-
-        $output = $container->toString();
-
-        $this->assertStringContainsString('report-uri', $output);
-        $this->assertStringContainsString('/csp-report-endpoint', $output);
+        return [
+            'default policy' => [
+                ['enabled' => true],
+                "Header set Content-Security-Policy \"default-src 'self'; child-src 'self'; connect-src 'self'; font-src 'self'; img-src 'self' data:; "
+                    . "manifest-src 'self'; media-src 'self'; object-src 'self'; script-src 'self'; style-src 'self';\"\n\n",
+            ],
+            'csp entries replace their default, X- header' => [
+                ['useXContentSecurityPolicy' => true, 'csp' => ['default' => ['none'], 'script' => ['self', 'https://cdn.example.com']]],
+                "Header set X-Content-Security-Policy \"default-src 'none'; child-src 'self'; connect-src 'self'; font-src 'self'; img-src 'self' data:; "
+                    . "manifest-src 'self'; media-src 'self'; object-src 'self'; script-src 'self' https://cdn.example.com; style-src 'self';\"\n\n",
+            ],
+            'full directive names, sources as one string' => [
+                ['csp' => ['default-src' => "'none'", 'script-src' => "'self' 'unsafe-inline'", 'report-uri' => '/csp-report-endpoint']],
+                "Header set Content-Security-Policy \"default-src 'none'; child-src 'self'; connect-src 'self'; font-src 'self'; img-src 'self' data:; "
+                    . "manifest-src 'self'; media-src 'self'; object-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self'; report-uri /csp-report-endpoint;\"\n\n",
+            ],
+            'integrations add their hosts' => [
+                ['integrations' => ['googleFonts']],
+                "Header set Content-Security-Policy \"default-src 'self'; child-src 'self'; connect-src 'self'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; "
+                    . "manifest-src 'self'; media-src 'self'; object-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com;\"\n\n",
+            ],
+        ];
     }
 }
