@@ -69,7 +69,7 @@ class RewriteModuleTest extends TestCase
         $module = new RewriteModule();
         $module->addMaintenanceMode(['10.0.0.1', '192.168.1.10'], '/down.html');
 
-        $this->assertStringStartsWith($expectedStart, $module->toString($showComments));
+        $this->assertSame($expectedStart, $module->toString($showComments));
     }
 
     public static function maintenanceCases(): array
@@ -84,6 +84,9 @@ class RewriteModuleTest extends TestCase
                 '# RewriteRule $ /down.html [L]',
                 '# or not to maintenance',
                 'RewriteCond %{REQUEST_URI} ^/down.html$',
+                // a same-host absolute URL without R is an internal rewrite: the page was not left
+                'RewriteRule ^ https://%{HTTP_HOST}/ [L,R=301]',
+                '',
                 '',
             ])],
             'comments hidden: the ON section stays, commented out' => [false, implode("\n", [
@@ -93,6 +96,9 @@ class RewriteModuleTest extends TestCase
                 '# RewriteCond %{REQUEST_URI} !^/down.html$',
                 '# RewriteRule $ /down.html [L]',
                 'RewriteCond %{REQUEST_URI} ^/down.html$',
+                // a same-host absolute URL without R is an internal rewrite: the page was not left
+                'RewriteRule ^ https://%{HTTP_HOST}/ [L,R=301]',
+                '',
                 '',
             ])],
         ];

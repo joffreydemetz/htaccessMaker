@@ -67,7 +67,8 @@ class RewriteModule extends IfModule
 
         $this->addDirective(new Comment('or not to maintenance'));
         $this->addRewriteCond('%{REQUEST_URI}', '^' . $maintenancePage . '$');
-        $this->addRewriteRule('^', 'https://%{HTTP_HOST}', ['L']);
+        // a redirect (a same-host absolute URL without R is an internal rewrite)
+        $this->addRewriteRule('^', 'https://%{HTTP_HOST}/', ['L', 'R=301']);
 
         return $this;
     }
