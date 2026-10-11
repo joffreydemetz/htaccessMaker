@@ -63,6 +63,14 @@ class Container
     $isFirstDirective = true;
     $containerDirectives = '';
     foreach ($this->directives as $directive) {
+      // an EmptyLine renders as nothing: it is a blank line between directives (it used to be skipped)
+      if ($directive instanceof EmptyLine) {
+        if (!$isFirstDirective) {
+          $containerDirectives .= "\n";
+        }
+        continue;
+      }
+
       $directiveString = $this->directiveToString($directive, $showComments, $tag ? $indent + 1 : $indent);
 
       if (!$directiveString || empty(trim($directiveString))) {

@@ -7,6 +7,7 @@ namespace Tests;
 use PHPUnit\Framework\Attributes\DataProvider;
 use JDZ\HtaccessMaker\Container;
 use JDZ\HtaccessMaker\Directive;
+use JDZ\HtaccessMaker\EmptyLine;
 use JDZ\HtaccessMaker\IfModule;
 use JDZ\HtaccessMaker\Directive\Comment;
 use JDZ\HtaccessMaker\Directive\ServerSignature;
@@ -43,6 +44,9 @@ class ContainerTest extends BaseContainerTest
             'blank strings skipped' => [['', '   ', 'Directive "value"'], true, 0, "Directive \"value\"\n\n"],
             'nothing left to render' => [['# Test comment'], false, 0, ''],
             'no directive' => [[], true, 0, ''],
+            // 1.1.4: an EmptyLine renders as a blank line (it rendered as nothing and was skipped)
+            'an EmptyLine is a blank line' => [['Directive "a"', new EmptyLine(), 'Directive "b"'], true, 0, "Directive \"a\"\n\nDirective \"b\"\n\n"],
+            'an EmptyLine alone is nothing' => [[new EmptyLine()], true, 0, ''],
         ];
     }
 
