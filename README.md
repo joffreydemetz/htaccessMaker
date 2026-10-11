@@ -343,6 +343,7 @@ uses `symfony/yaml` and `jdz/data`, both dev dependencies):
 
 ## Changelog
 
+- **1.1.4** - `process(['enabled' => false])` renders nothing (an explicitly disabled module rendered its defaults); an `EmptyLine` inside a container renders as a blank line (it was dropped: the two `MaintenanceRewrite` sections were glued).
 - **1.1.3** - `SecurityRewrite::addRequestBlocking()` renders patterns Apache can compile (the malformed-URI one had its closing parenthesis escaped: a 500 on every request) and matches `..\` traversal; `addUserAgentBlocking()` no longer blocks every crawler (its OR chain ended on `(bot|crawler|spider|scraper)`) and always closes the chain with its rule; `RewriteModule::addMaintenanceMode()` redirects off the maintenance page (`R=301`) instead of an internal rewrite.
 
 - **1.1.1** - `jdz/cspmaker` is resolved from Packagist (no local path repository).
