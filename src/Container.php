@@ -105,7 +105,8 @@ class Container
 
   protected function parseConfig(array $config): array|false
   {
-    if (!empty($config)) {
+    // a config turns the module on, unless it says enabled => false itself (that used to render the defaults)
+    if (!empty($config) && !array_key_exists('enabled', $config)) {
       $config['enabled'] = true;
     }
 

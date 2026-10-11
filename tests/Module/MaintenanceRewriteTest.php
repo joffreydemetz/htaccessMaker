@@ -11,8 +11,8 @@ use JDZ\HtaccessMaker\Module\MaintenanceRewrite;
 class MaintenanceRewriteTest extends TestCase
 {
     /**
-     * Compared line by line without the blank lines: the EmptyLine meant to separate
-     * the ON and OFF sections is dropped by Container::toString() (reported, not pinned).
+     * Compared line by line without the blank lines (the blank line between the ON
+     * and OFF sections has its own test).
      *
      * @param list<string> $expectedLines
      */
@@ -48,6 +48,20 @@ class MaintenanceRewriteTest extends TestCase
                 '# RewriteRule ^ https://%{HTTP_HOST}/ [L,R=301]',
             ]],
             'empty config adds nothing' => [[], ['RewriteEngine On']],
+            // 1.1.4: an explicit enabled => false adds nothing (it rendered the defaults)
+            'explicitly disabled adds nothing' => [['enabled' => false, 'allowedIps' => ['192.168.1.10']], ['RewriteEngine On']],
         ];
+    }
+
+    /** 1.1.4: the EmptyLine between the ON and OFF sections shows (Container::toString() dropped it) */
+    public function testTheOnAndOffSectionsAreSeparatedByABlankLine(): void
+    {
+        $module = new MaintenanceRewrite();
+        $module->process(['allowedIps' => ['192.168.1.10']]);
+
+        $this->assertStringContainsString(
+            "# RewriteRule $ /maintenance.html [L]\n\nRewriteCond %{REQUEST_URI} ^/maintenance.html$\n",
+            $module->toString()
+        );
     }
 }
